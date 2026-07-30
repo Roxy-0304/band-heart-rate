@@ -21,7 +21,8 @@ You need to enable the heart rate broadcast function in your wearable device's s
 - **Slint Native Window** — Minimal CPU and memory usage, high frame rate
 - **Real-time Heart Rate Display** — Large digits with real-time refresh, auto-detect Warmup/Fat Burn/Aerobic/Limit zones
 - **Live Statistics** — Min/Max/Average heart rate with one-click reset
-- **HTTP API** — REST endpoints + SSE real-time push
+- **Settings Panel** — Configure max heart rate, device keywords, HTTP port, auto-start, and minimize-to-tray
+- **HTTP API** — REST endpoints + SSE real-time push + settings read/write
 - **Auto Reconnect** — Automatic scan and reconnect with exponential backoff
 - **Native Windows support** — macOS / Linux require additional platform dependencies
 
@@ -54,6 +55,7 @@ cargo build --release --no-default-features
 2. Ensure Bluetooth is enabled on your device
 3. Run the program — it automatically scans and connects to heart rate devices
 4. Heart rate data is displayed in real-time in the native window and accessible via HTTP API
+5. Click the gear icon in the top-right corner to open the settings panel
 
 ## HTTP API
 
@@ -61,15 +63,23 @@ cargo build --release --no-default-features
 |----------|-------------|
 | `GET /heart-rate` | Current heart rate as JSON |
 | `GET /heart-rate-stream` | SSE real-time heart rate stream |
+| `GET /settings` | Get current configuration |
+| `PUT /settings` | Update configuration (JSON body) |
 | `GET /health` | Health check |
 
-Default address: `http://127.0.0.1:3030` (random port if occupied).
+Default address: `http://127.0.0.1:3030` (configurable in settings panel; random port if occupied).
 
-## Environment Variables
+## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MIBAND_ALLOWED_DEVICES` | Comma-separated device name keywords for allowed connections | `band,amazfit,watch,mi` |
+Settings are saved in the system config directory (Windows: `%APPDATA%/band-heart-rate/settings.json`) and can also be modified via the settings panel or HTTP API.
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `max_heart_rate` | Max heart rate (affects zone calculation) | `190` |
+| `allowed_devices` | Comma-separated device name keywords | `band,amazfit,watch,mi` |
+| `server_port` | HTTP server port | `3030` |
+| `auto_start` | Start on system boot | `false` |
+| `minimize_to_tray` | Minimize to tray on close | `true` |
 
 ## Compatible Devices
 
@@ -79,13 +89,17 @@ Supported devices include: Xiaomi Mi Band, Honor Band, Huawei Band/Watch, Amazfi
 
 ## Screenshots
 
-**Backend Native Interface**
+**Main Interface**
 
-![Backend Native Interface](doc/1.png)
+![Main Interface](doc/1.png)
 
-**Frontend Web Interface**
+**Web Interface**
 
-![Frontend Web Interface](doc/2.png)
+![Web Interface](doc/2.png)
+
+**Settings Panel**
+
+![Settings Panel](doc/3.png)
 
 ## License
 

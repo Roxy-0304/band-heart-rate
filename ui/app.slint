@@ -1,3 +1,5 @@
+import { LineEdit } from "std-widgets.slint";
+
 export component MainWindow inherits Window {
     title: "Band Heart Rate Monitor";
     min-width: 380px;
@@ -6,11 +8,22 @@ export component MainWindow inherits Window {
     max-height: 480px;
     preferred-width: 380px;
     preferred-height: 480px;
-    background: #0a0e16;
 
-    // External properties set from Rust
+    in property <bool> settings-visible: false;
+
+    in property <color> bg-color: #0a0e16;
+    in property <color> card-bg: #111827;
+    in property <color> card-border: #1f2937;
+    in property <color> text-primary: #ffffff;
+    in property <color> text-secondary: #6b7280;
+    in property <color> text-dim: #9ca3af;
+    in property <color> accent: #38bdf8;
+    in property <color> pink: #f472b6;
+    in property <color> purple: #a78bfa;
+    in property <color> overlay-bg: rgba(0,0,0,0.6);
+
     in property <string> status-text: "断开连接";
-    in property <color> status-color: #ef4444;
+    in property <color> status-color: #EF4444;
     in property <string> bpm-text: "--";
     in property <string> zone-label: "--";
     in property <color> zone-color: #4a4f58;
@@ -18,32 +31,48 @@ export component MainWindow inherits Window {
     in property <string> stat-min: "--";
     in property <string> stat-max: "--";
     in property <string> stat-avg: "--";
-    // Callbacks
-    callback reset-stats();
+    in property <string> broadcast-address: "";
 
-    // 主内容区域
+    in-out property <string> input-max-hr: "190";
+    in-out property <string> input-devices: "band,amazfit,watch,mi";
+    in-out property <string> input-port: "3030";
+    in-out property <bool> setting-auto-start: false;
+    in-out property <bool> setting-minimize-tray: true;
+
+    callback reset-stats();
+    callback open-settings();
+    callback close-settings();
+    callback save-settings(string, string, string, bool, bool);
+    callback copy-address();
+
+    background: self.bg-color;
+
+    // === Main content ===
     VerticalLayout {
         padding: 16px;
         spacing: 0px;
 
-        // === 状态栏 (参考设计：左侧状态点+文字，中间标题) ===
+        // Status bar
         HorizontalLayout {
-            padding-bottom: 16px;
+            padding-bottom: 12px;
             spacing: 0px;
             alignment: space-between;
+            vertical-stretch: 0;
 
-            // 左侧：连接状态
             HorizontalLayout {
                 spacing: 6px;
                 alignment: start;
                 width: 100px;
 
-                status-dot := Rectangle {
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 4px;
-                    background: root.status-color;
-                    opacity: root.status-color == #4ade80 ? 1.0 : 0.8;
+                VerticalLayout {
+                    alignment: center;
+
+                    Rectangle {
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 4px;
+                        background: root.status-color;
+                    }
                 }
 
                 Text {
@@ -55,64 +84,81 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // 中间：标题
             Text {
                 text: "Band Heart Rate Monitor";
                 font-size: 12px;
                 font-weight: 700;
-                color: #9ca3af;
+                color: root.text-dim;
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 letter-spacing: 0.5px;
             }
 
-            // 右侧占位
             Rectangle {
                 width: 100px;
+                horizontal-stretch: 0;
+
+                HorizontalLayout {
+                    alignment: end;
+                    padding-right: 4px;
+
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 8px;
+                        background: #1f2937;
+
+                        Text {
+                            text: "\u{2699}";
+                            font-size: 16px;
+                            color: #9ca3af;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.open-settings(); }
+                        }
+                    }
+                }
             }
         }
 
-        // === 心率主显示区 (hero-section 居中布局) ===
+        // BPM hero section
         Rectangle {
             border-radius: 16px;
-            background: #111827;
+            background: root.card-bg;
             border-width: 1px;
-            border-color: #1f2937;
+            border-color: root.card-border;
             vertical-stretch: 1;
 
             VerticalLayout {
-                padding: 24px;
-                spacing: 8px;
+                padding: 20px;
+                spacing: 6px;
                 alignment: center;
 
-                // BPM 数字 - 主要焦点
                 Text {
                     text: root.bpm-text;
-                    font-size: 96px;
+                    font-size: 80px;
                     font-weight: 900;
-                    color: #ffffff;
+                    color: root.text-primary;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                     letter-spacing: -2px;
                     font-family: "MiSans VF";
                 }
 
-                // BPM 标签
                 Text {
                     text: "BPM";
                     font-size: 13px;
                     font-weight: 600;
-                    color: #6b7280;
+                    color: root.text-secondary;
                     horizontal-alignment: center;
                     letter-spacing: 3px;
                 }
 
-                // 间距
-                Rectangle {
-                    height: 8px;
-                }
+                Rectangle { height: 8px; }
 
-                // 心率区间标签 - 圆角胶囊设计
                 Rectangle {
                     height: 28px;
                     border-radius: 14px;
@@ -131,7 +177,7 @@ export component MainWindow inherits Window {
                             text: "心率区间";
                             font-size: 10px;
                             font-weight: 500;
-                            color: #9ca3af;
+                            color: root.text-dim;
                             vertical-alignment: center;
                         }
 
@@ -144,112 +190,97 @@ export component MainWindow inherits Window {
                         }
                     }
                 }
+
+                if root.broadcast-address != "": Rectangle {
+                    height: 40px;
+                    border-radius: 10px;
+                    background: #1a2332;
+
+                    VerticalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 2px;
+                        alignment: center;
+
+                        Text {
+                            text: root.broadcast-address;
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: root.text-primary;
+                            horizontal-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: "http://127.0.0.1:" + root.input-port;
+                            font-size: 10px;
+                            font-weight: 500;
+                            color: root.text-dim;
+                            horizontal-alignment: center;
+                        }
+                    }
+
+                    TouchArea {
+                        clicked => { root.copy-address(); }
+                    }
+                }
             }
         }
 
-        // 间距
-        Rectangle {
-            height: 12px;
-        }
+        Rectangle { height: 10px; vertical-stretch: 0; }
 
-        // === 统计区 (参考设计：简洁横向统计栏) ===
+        // Stats bar
         Rectangle {
-            height: 72px;
+            height: 68px;
+            vertical-stretch: 0;
             border-radius: 12px;
-            background: #111827;
+            background: root.card-bg;
             border-width: 1px;
-            border-color: #1f2937;
+            border-color: root.card-border;
 
             HorizontalLayout {
                 padding: 14px;
                 spacing: 0px;
 
-                // 最低心率
                 Rectangle {
                     vertical-stretch: 1;
-
                     VerticalLayout {
                         spacing: 6px;
                         alignment: center;
-
-                        Text {
-                            text: "最低";
-                            font-size: 10px;
-                            font-weight: 600;
-                            color: #6b7280;
-                            horizontal-alignment: center;
-                        }
-
-                        Text {
-                            text: root.stat-min;
-                            font-size: 24px;
-                            font-weight: 700;
-                            color: #38bdf8;
-                            horizontal-alignment: center;
-                        }
+                        Text { text: "最低"; font-size: 10px; font-weight: 600; color: root.text-secondary; horizontal-alignment: center; }
+                        Text { text: root.stat-min; font-size: 24px; font-weight: 700; color: root.accent; horizontal-alignment: center; }
                     }
                 }
 
-                // 最高心率
                 Rectangle {
                     vertical-stretch: 1;
-
                     VerticalLayout {
                         spacing: 6px;
                         alignment: center;
-
-                        Text {
-                            text: "最高";
-                            font-size: 10px;
-                            font-weight: 600;
-                            color: #6b7280;
-                            horizontal-alignment: center;
-                        }
-
-                        Text {
-                            text: root.stat-max;
-                            font-size: 24px;
-                            font-weight: 700;
-                            color: #f472b6;
-                            horizontal-alignment: center;
-                        }
+                        Text { text: "最高"; font-size: 10px; font-weight: 600; color: root.text-secondary; horizontal-alignment: center; }
+                        Text { text: root.stat-max; font-size: 24px; font-weight: 700; color: root.pink; horizontal-alignment: center; }
                     }
                 }
 
-                // 平均心率
                 Rectangle {
                     vertical-stretch: 1;
-
                     VerticalLayout {
                         spacing: 6px;
                         alignment: center;
-
-                        Text {
-                            text: "平均";
-                            font-size: 10px;
-                            font-weight: 600;
-                            color: #6b7280;
-                            horizontal-alignment: center;
-                        }
-
-                        Text {
-                            text: root.stat-avg;
-                            font-size: 24px;
-                            font-weight: 700;
-                            color: #a78bfa;
-                            horizontal-alignment: center;
-                        }
+                        Text { text: "平均"; font-size: 10px; font-weight: 600; color: root.text-secondary; horizontal-alignment: center; }
+                        Text { text: root.stat-avg; font-size: 24px; font-weight: 700; color: root.purple; horizontal-alignment: center; }
                     }
                 }
             }
         }
 
-        // === 重置按钮 ===
+        // Reset button
         HorizontalLayout {
             alignment: center;
-            padding-top: 14px;
+            padding-top: 10px;
+            vertical-stretch: 0;
 
-            reset-btn := Rectangle {
+            Rectangle {
                 width: 130px;
                 height: 36px;
                 border-radius: 10px;
@@ -258,7 +289,7 @@ export component MainWindow inherits Window {
                 border-color: #374151;
 
                 Text {
-                    text: "↻ 重置统计";
+                    text: "\u{21bb} 重置统计";
                     font-size: 12px;
                     font-weight: 600;
                     color: #d1d5db;
@@ -266,9 +297,268 @@ export component MainWindow inherits Window {
                     vertical-alignment: center;
                 }
 
-                ta := TouchArea {
-                    clicked => {
-                        root.reset-stats();
+                TouchArea {
+                    clicked => { root.reset-stats(); }
+                }
+            }
+        }
+    }
+
+    // === Settings overlay ===
+    if root.settings-visible: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: root.overlay-bg;
+
+        touch-intercept := TouchArea { }
+
+        Rectangle {
+            width: 300px;
+            height: 380px;
+            border-radius: 12px;
+            background: #0d1117;
+            border-width: 1px;
+            border-color: #21262d;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 0px;
+
+                // Header
+                HorizontalLayout {
+                    height: 24px;
+                    alignment: space-between;
+                    vertical-stretch: 0;
+
+                    Text {
+                        text: "设置";
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: #e6edf3;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 4px;
+
+                        Text {
+                            text: "X";
+                            font-size: 11px;
+                            color: #6e7681;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.close-settings(); }
+                        }
+                    }
+                }
+
+                Rectangle { height: 8px; vertical-stretch: 0; }
+
+                // --- Connection ---
+                Text {
+                    text: "连接";
+                    font-size: 10px;
+                    font-weight: 600;
+                    color: #6e7681;
+                    vertical-stretch: 0;
+                }
+
+                Rectangle { height: 6px; vertical-stretch: 0; }
+
+                VerticalLayout {
+                    spacing: 2px;
+                    vertical-stretch: 0;
+
+                    Text {
+                        text: "最大心率";
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #8b949e;
+                    }
+                    LineEdit {
+                        height: 28px;
+                        text: root.input-max-hr;
+                        placeholder-text: "190";
+                        edited(t) => { root.input-max-hr = t; }
+                    }
+                }
+
+                Rectangle { height: 6px; vertical-stretch: 0; }
+
+                VerticalLayout {
+                    spacing: 2px;
+                    vertical-stretch: 0;
+
+                    Text {
+                        text: "设备关键词";
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #8b949e;
+                    }
+                    LineEdit {
+                        height: 28px;
+                        text: root.input-devices;
+                        placeholder-text: "band,amazfit,watch,mi";
+                        edited(t) => { root.input-devices = t; }
+                    }
+                }
+
+                Rectangle { height: 6px; vertical-stretch: 0; }
+
+                VerticalLayout {
+                    spacing: 2px;
+                    vertical-stretch: 0;
+
+                    Text {
+                        text: "HTTP 端口";
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #8b949e;
+                    }
+                    LineEdit {
+                        height: 28px;
+                        text: root.input-port;
+                        placeholder-text: "3030";
+                        edited(t) => { root.input-port = t; }
+                    }
+                }
+
+                Rectangle { height: 10px; vertical-stretch: 0; }
+
+                Rectangle {
+                    height: 1px;
+                    background: #161b22;
+                    vertical-stretch: 0;
+                }
+
+                Rectangle { height: 10px; vertical-stretch: 0; }
+
+                // --- Behavior ---
+                Text {
+                    text: "行为";
+                    font-size: 10px;
+                    font-weight: 600;
+                    color: #6e7681;
+                    vertical-stretch: 0;
+                }
+
+                Rectangle { height: 4px; vertical-stretch: 0; }
+
+                // Auto start
+                HorizontalLayout {
+                    height: 28px;
+                    vertical-stretch: 0;
+                    alignment: space-between;
+
+                    Text {
+                        text: "开机自启动";
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #8b949e;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: root.setting-auto-start ? #238636 : #21262d;
+                        border-width: 1px;
+                        border-color: root.setting-auto-start ? #2ea043 : #30363d;
+
+                        Rectangle {
+                            x: root.setting-auto-start ? 17px : 1px;
+                            width: 14px;
+                            height: 14px;
+                            border-radius: 7px;
+                            background: root.setting-auto-start ? #ffffff : #484f58;
+                            y: 2px;
+                        }
+
+                        TouchArea {
+                            clicked => { root.setting-auto-start = !root.setting-auto-start; }
+                        }
+                    }
+                }
+
+                Rectangle { height: 4px; vertical-stretch: 0; }
+
+                // Minimize to tray
+                HorizontalLayout {
+                    height: 28px;
+                    vertical-stretch: 0;
+                    alignment: space-between;
+
+                    Text {
+                        text: "最小化到托盘";
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #8b949e;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: root.setting-minimize-tray ? #238636 : #21262d;
+                        border-width: 1px;
+                        border-color: root.setting-minimize-tray ? #2ea043 : #30363d;
+
+                        Rectangle {
+                            x: root.setting-minimize-tray ? 17px : 1px;
+                            width: 14px;
+                            height: 14px;
+                            border-radius: 7px;
+                            background: root.setting-minimize-tray ? #ffffff : #484f58;
+                            y: 2px;
+                        }
+
+                        TouchArea {
+                            clicked => { root.setting-minimize-tray = !root.setting-minimize-tray; }
+                        }
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                // Save
+                Rectangle {
+                    height: 30px;
+                    vertical-stretch: 0;
+                    border-radius: 6px;
+                    background: #161b22;
+                    border-width: 1px;
+                    border-color: #21262d;
+
+                    Text {
+                        text: "保存";
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #c9d1d9;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => {
+                            root.save-settings(
+                                root.input-max-hr,
+                                root.input-devices,
+                                root.input-port,
+                                root.setting-auto-start,
+                                root.setting-minimize-tray,
+                            );
+                        }
                     }
                 }
             }

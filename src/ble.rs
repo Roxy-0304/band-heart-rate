@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::OnceLock;
 use std::time::Instant;
 
 use bluest::{btuuid::bluetooth_uuid_from_u16, Adapter, Device, Uuid};
@@ -7,6 +6,7 @@ use futures_lite::stream::StreamExt;
 use tokio::sync::watch;
 use tokio::time::{timeout, Duration};
 
+use crate::config::Config;
 use crate::macros::printfl_inline;
 use crate::types::{HeartRateReading, ReconnectError};
 
@@ -29,30 +29,22 @@ const SCAN_RETRY_DELAY_SECS: u64 = 1;
 /// 默认允许连接的设备名称关键词（不区分大小写，名称包含任意一个即匹配）
 const DEFAULT_ALLOWED_KEYWORDS: &[&str] = &["band", "amazfit", "watch", "mi"];
 
-/// 读取允许的设备名称关键词（优先读取环境变量 MIBAND_ALLOWED_DEVICES，逗号分隔；否则使用默认列表）
-fn allowed_keywords() -> &'static [String] {
-    static KEYWORDS: OnceLock<Vec<String>> = OnceLock::new();
-    KEYWORDS.get_or_init(|| match std::env::var("MIBAND_ALLOWED_DEVICES") {
-        Ok(val) => {
-            let keywords: Vec<String> = val
-                .split(',')
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty())
-                .collect();
-            if keywords.is_empty() {
-                DEFAULT_ALLOWED_KEYWORDS
-                    .iter()
-                    .map(|s| s.to_lowercase())
-                    .collect()
-            } else {
-                keywords
-            }
-        }
-        Err(_) => DEFAULT_ALLOWED_KEYWORDS
+/// 从配置中解析允许的设备名称关键词
+fn allowed_keywords(config: &Config) -> Vec<String> {
+    let keywords: Vec<String> = config
+        .allowed_devices
+        .split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if keywords.is_empty() {
+        DEFAULT_ALLOWED_KEYWORDS
             .iter()
             .map(|s| s.to_lowercase())
-            .collect(),
-    })
+            .collect()
+    } else {
+        keywords
+    }
 }
 
 /// 检查设备名称是否匹配允许的关键词列表。
@@ -131,11 +123,16 @@ impl BleSession {
 // ===== 公开入口 =====
 
 /// 蓝牙主循环：扫描、连接、重连
-pub async fn run_loop(adapter: Adapter, tx: watch::Sender<HeartRateReading>) -> anyhow::Result<()> {
+pub async fn run_loop(
+    adapter: Adapter,
+    tx: watch::Sender<HeartRateReading>,
+    config_rx: watch::Receiver<Config>,
+) -> anyhow::Result<()> {
     let mut session = BleSession::new();
 
     loop {
         session.check_timeout()?;
+        let config = config_rx.borrow().clone();
 
         let is_reconnecting = session.is_reconnecting();
         tx.send_replace(HeartRateReading {
@@ -170,7 +167,7 @@ pub async fn run_loop(adapter: Adapter, tx: watch::Sender<HeartRateReading>) -> 
         };
 
         // 尝试连接每个设备 — known_ids 优先
-        let keywords = allowed_keywords();
+        let keywords = allowed_keywords(&config);
         let (known_devices, other_devices): (Vec<&Device>, Vec<&Device>) = devices
             .iter()
             .partition(|d| session.known_ids.contains(&d.id().to_string()));
@@ -180,7 +177,7 @@ pub async fn run_loop(adapter: Adapter, tx: watch::Sender<HeartRateReading>) -> 
             let device_id = device.id().to_string();
             let device_name = device.name_async().await.ok();
             if !session.known_ids.contains(&device_id)
-                && !device_name_allowed(device_name.as_deref(), keywords)
+                && !device_name_allowed(device_name.as_deref(), &keywords)
             {
                 if !is_reconnecting {
                     tracing::debug!(
@@ -246,7 +243,7 @@ pub async fn run_loop(adapter: Adapter, tx: watch::Sender<HeartRateReading>) -> 
             session.reconnect_attempts = 0;
             tracing::info!("所有设备忙碌或不可达，进入轻量轮询模式...");
 
-            poll_for_available_device(&adapter, tx.clone(), &session.known_ids).await?;
+            poll_for_available_device(&adapter, tx.clone(), &session.known_ids, &config_rx).await?;
             session.disconnect_time = None;
             continue;
         }
@@ -349,6 +346,7 @@ async fn poll_for_available_device(
     adapter: &Adapter,
     tx: watch::Sender<HeartRateReading>,
     known_ids: &HashSet<String>,
+    config_rx: &watch::Receiver<Config>,
 ) -> anyhow::Result<()> {
     let deadline = Duration::from_secs(SCAN_TOTAL_TIMEOUT_SECS);
     let poll_duration = Duration::from_secs(5);
@@ -408,7 +406,7 @@ async fn poll_for_available_device(
             continue;
         }
 
-        let keywords = allowed_keywords();
+        let keywords = allowed_keywords(&config_rx.borrow());
         let (known_devices, other_devices): (Vec<&Device>, Vec<&Device>) = devices
             .iter()
             .partition(|d| known_ids.contains(&d.id().to_string()));
@@ -416,7 +414,7 @@ async fn poll_for_available_device(
         for device in known_devices.iter().chain(other_devices.iter()) {
             let device_name = device.name_async().await.ok();
             if !known_ids.contains(&device.id().to_string())
-                && !device_name_allowed(device_name.as_deref(), keywords)
+                && !device_name_allowed(device_name.as_deref(), &keywords)
             {
                 continue;
             }
@@ -476,8 +474,14 @@ async fn handle_device(
     let mut updates = heart_rate_measurement.notify().await?;
 
     // 发送已连接状态
+    let device_addr = device.id().to_string();
+    let device_name = device.name_async().await.ok().map(String::from);
+    let da = device_addr.clone();
+    let dn = device_name.clone();
     tx.send_replace(HeartRateReading {
         connected: true,
+        device_address: Some(device_addr),
+        device_name,
         ..Default::default()
     });
 
@@ -522,6 +526,8 @@ async fn handle_device(
                         connected: true,
                         scanning: false,
                         error: None,
+                        device_address: Some(da.clone()),
+                        device_name: dn.clone(),
                     });
 
                     printfl_inline!(

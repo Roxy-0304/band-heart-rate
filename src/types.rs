@@ -34,12 +34,17 @@ pub struct HeartRateReading {
     pub sensor_contact: Option<bool>,
     pub connected: bool,
     pub scanning: bool,
-    /// 蓝牙任务退出时填充错误信息，前端可据此显示提示
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
 }
 
 #[derive(Clone)]
 pub struct AppState {
     pub rx: watch::Receiver<HeartRateReading>,
+    pub config_rx: watch::Receiver<crate::config::Config>,
+    pub config_tx: watch::Sender<crate::config::Config>,
 }

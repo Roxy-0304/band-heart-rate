@@ -3,6 +3,8 @@
 #[cfg(feature = "gui")]
 mod ble;
 #[cfg(feature = "gui")]
+mod config;
+#[cfg(feature = "gui")]
 mod macros;
 #[cfg(feature = "gui")]
 mod server;
@@ -15,7 +17,6 @@ mod web_ui;
 mod gui;
 
 fn main() {
-    // 初始化 tracing 日志（默认 info 级别，可通过 RUST_LOG 环境变量覆盖）
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -31,23 +32,27 @@ fn main() {
         use tokio::sync::watch;
         use types::HeartRateReading;
 
+        let config_manager = config::ConfigManager::new();
+
         let (tx, rx_ble) = watch::channel(HeartRateReading::default());
 
-        // Clone receivers for server and GUI
         let rx_server = rx_ble.clone();
+        let config_tx_server = config_manager.tx.clone();
+        let config_rx_server = config_manager.rx.clone();
 
-        // Spawn tokio runtime in a background thread for BLE + HTTP
+        let config_rx_ble = config_manager.rx.clone();
+        let config_rx_gui = config_manager.rx.clone();
+        let config_tx_gui = config_manager.tx;
+
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
             rt.block_on(async {
-                // Spawn Axum Web server
                 let server_handle = tokio::spawn(async move {
-                    if let Err(err) = server::run_server(rx_server).await {
+                    if let Err(err) = server::run_server(rx_server, config_tx_server, config_rx_server).await {
                         tracing::error!("Web 服务器错误: {err}");
                     }
                 });
 
-                // Initialize BLE adapter
                 let adapter = match bluest::Adapter::default().await {
                     Some(a) => a,
                     None => {
@@ -88,8 +93,7 @@ fn main() {
                     }
                 }
 
-                // Run BLE loop
-                if let Err(e) = ble::run_loop(adapter, tx.clone()).await {
+                if let Err(e) = ble::run_loop(adapter, tx.clone(), config_rx_ble).await {
                     tracing::error!("蓝牙循环退出: {e}");
                     tx.send_replace(HeartRateReading {
                         error: Some(format!("蓝牙服务已停止: {e}")),
@@ -101,8 +105,7 @@ fn main() {
             });
         });
 
-        // Run Slint GUI on the main thread (required by most windowing systems)
-        if let Err(e) = gui::run(rx_ble) {
+        if let Err(e) = gui::run(rx_ble, config_rx_gui, config_tx_gui) {
             tracing::error!("GUI 退出: {e}");
         }
     }

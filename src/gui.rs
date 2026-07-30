@@ -1,7 +1,8 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use tokio::sync::watch;
 
+use crate::config::Config;
 use crate::types::HeartRateReading;
 
 // Include the Slint UI generated at build time
@@ -15,11 +16,12 @@ const ZONES: &[(f64, f64, &str, &str)] = &[
     (0.8, 1.0, "极限", "#EF5350"),
 ];
 
-fn get_zone(hr: u16) -> (&'static str, &'static str) {
+fn get_zone(hr: u16, max_hr: u16) -> (&'static str, &'static str) {
     if hr == 0 {
         return ("--", "#4A4F58");
     }
-    let pct = hr as f64 / 190.0;
+    let max = max_hr.max(1) as f64;
+    let pct = hr as f64 / max;
     for &(min, max, label, color) in ZONES {
         if pct >= min && pct < max {
             return (label, color);
@@ -31,9 +33,9 @@ fn get_zone(hr: u16) -> (&'static str, &'static str) {
 /// Blend zone color at 12% opacity over background #0a0e16
 fn zone_bg_color(hex: &str) -> slint::Color {
     let hex = hex.trim_start_matches('#');
-    let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0) as f64;
-    let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0) as f64;
-    let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0) as f64;
+    let r = hex.get(0..2).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
+    let g = hex.get(2..4).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
+    let b = hex.get(4..6).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
     let bg_r = 10.0f64;
     let bg_g = 14.0f64;
     let bg_b = 22.0f64;
@@ -46,9 +48,9 @@ fn zone_bg_color(hex: &str) -> slint::Color {
 
 fn parse_color(hex: &str) -> slint::Color {
     let hex = hex.trim_start_matches('#');
-    let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
-    let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
-    let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
+    let r = hex.get(0..2).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
+    let g = hex.get(2..4).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
+    let b = hex.get(4..6).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
     slint::Color::from_rgb_u8(r, g, b)
 }
 
@@ -233,8 +235,22 @@ fn pump_windows_messages() {
 }
 
 /// Run the Slint GUI, consuming heart rate data from the watch channel.
-pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
+pub fn run(
+    rx: watch::Receiver<HeartRateReading>,
+    config_rx: watch::Receiver<Config>,
+    config_tx: watch::Sender<Config>,
+) -> anyhow::Result<()> {
     let window = MainWindow::new()?;
+
+    // Apply initial settings from config
+    {
+        let config = config_rx.borrow();
+        window.set_input_max_hr(config.max_heart_rate.to_string().into());
+        window.set_input_devices(config.allowed_devices.clone().into());
+        window.set_input_port(config.server_port.to_string().into());
+        window.set_setting_auto_start(config.auto_start);
+        window.set_setting_minimize_tray(config.minimize_to_tray);
+    }
 
     // Create a hidden window for popup menu ownership
     let menu_hwnd = create_hidden_window();
@@ -374,6 +390,66 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
         });
     }
 
+    // Settings callbacks
+    {
+        let window_weak = window.as_weak();
+        window.on_open_settings(move || {
+            if let Some(w) = window_weak.upgrade() {
+                w.set_settings_visible(true);
+            }
+        });
+    }
+    {
+        let window_weak = window.as_weak();
+        window.on_close_settings(move || {
+            if let Some(w) = window_weak.upgrade() {
+                w.set_settings_visible(false);
+            }
+        });
+    }
+    // Copy address callback
+    {
+        let window_weak = window.as_weak();
+        let rx_clone = rx.clone();
+        window.on_copy_address(move || {
+            let data = rx_clone.borrow().clone();
+            if data.device_address.is_some() {
+                let port = window_weak
+                    .upgrade()
+                    .map(|w| w.get_input_port().to_string())
+                    .unwrap_or_else(|| "3030".into());
+                let text = format!("http://127.0.0.1:{port}");
+                #[cfg(target_os = "windows")]
+                {
+                    use clipboard_win::{set_clipboard, formats::Unicode};
+                    let _ = set_clipboard(Unicode, &text);
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = text;
+                }
+            }
+        });
+    }
+    {
+        let window_weak = window.as_weak();
+        let config_tx_clone = config_tx.clone();
+        window.on_save_settings(move |max_hr, devices, port, auto_start, min_tray| {
+            let new_config = Config {
+                max_heart_rate: max_hr.to_string().trim().parse().unwrap_or(190),
+                allowed_devices: devices.to_string(),
+                server_port: port.to_string().trim().parse().unwrap_or(3030),
+                auto_start,
+                minimize_to_tray: min_tray,
+            };
+            let _ = new_config.save();
+            let _ = config_tx_clone.send(new_config);
+            if let Some(w) = window_weak.upgrade() {
+                w.set_settings_visible(false);
+            }
+        });
+    }
+
     // Timer for heart rate data
     let window_weak = window.as_weak();
     let rx = rx.clone();
@@ -381,6 +457,7 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
     // Cache previous values to avoid unnecessary UI updates (causes flickering)
     let prev_hr = Rc::new(Cell::new(0u16));
     let prev_status = Rc::new(Cell::new(0u8)); // 0: disconnected, 1: scanning, 2: connected, 3: error
+    let prev_addr = Rc::new(RefCell::new(String::new()));
 
     // Flag to signal right-click on tray while window was visible
     let right_click_pending = Rc::new(Cell::new(false));
@@ -388,6 +465,8 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
     let _timer = slint::Timer::default();
     let prev_hr_clone = prev_hr.clone();
     let prev_status_clone = prev_status.clone();
+    let prev_addr_clone = prev_addr.clone();
+    let config_rx_for_timer = config_rx.clone();
 
     // Share menu with tray timer via Rc
     let menu = Rc::new(menu);
@@ -399,6 +478,7 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
         move || {
             // Always borrow the latest value from the watch channel
             let data = rx.borrow().clone();
+            let max_hr = config_rx_for_timer.borrow().max_heart_rate;
 
             let Some(w) = window_weak.upgrade() else {
                 return;
@@ -432,6 +512,17 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
                 }
             }
 
+            // Broadcast address - only update if changed
+            let new_addr = data.device_address.clone().unwrap_or_default();
+            if *prev_addr_clone.borrow() != new_addr {
+                *prev_addr_clone.borrow_mut() = new_addr.clone();
+                let display = match &data.device_name {
+                    Some(name) if !new_addr.is_empty() => name.clone(),
+                    _ => "".to_string(),
+                };
+                w.set_broadcast_address(display.into());
+            }
+
             // Heart rate - only update if changed
             let new_hr = if data.connected && data.heart_rate > 0 {
                 data.heart_rate
@@ -446,7 +537,7 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
                     w.set_bpm_text(new_hr.to_string().into());
 
                     // Zone
-                    let (zone_label, zone_color) = get_zone(new_hr);
+                    let (zone_label, zone_color) = get_zone(new_hr, max_hr);
                     w.set_zone_label(zone_label.into());
                     w.set_zone_color(parse_color(zone_color));
                     w.set_zone_bg_color(zone_bg_color(zone_color));
@@ -471,7 +562,11 @@ pub fn run(rx: watch::Receiver<HeartRateReading>) -> anyhow::Result<()> {
 
                     w.set_stat_min(stats_min.get().to_string().into());
                     w.set_stat_max(stats_max.get().to_string().into());
-                    let avg = (stats_sum.get() / stats_count.get() as u64) as u16;
+                    let avg = if stats_count.get() > 0 {
+                        (stats_sum.get() / stats_count.get() as u64) as u16
+                    } else {
+                        0
+                    };
                     w.set_stat_avg(avg.to_string().into());
                 } else if !data.connected && !data.scanning {
                     w.set_bpm_text("--".into());

@@ -592,6 +592,8 @@ dependencies = [
  "anyhow",
  "axum",
  "bluest",
+ "clipboard-win",
+ "dirs",
  "futures-lite 1.13.0",
  "image",
  "muda 0.15.3",

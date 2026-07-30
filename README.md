@@ -21,7 +21,8 @@
 - **Slint 原生窗口** — CPU 和内存占用极低，高帧率刷新
 - **实时心率显示** — 大数字实时刷新，自动识别热身/燃脂/有氧/极限四区
 - **实时统计** — 最低/最高/平均心率，支持一键重置
-- **HTTP API** — REST 接口 + SSE 实时推送
+- **设置面板** — 可配置最大心率、设备关键词、HTTP 端口、开机自启、最小化到托盘
+- **HTTP API** — REST 接口 + SSE 实时推送 + 配置读写接口
 - **自动重连** — 断开后自动扫描重连，指数退避
 - **原生 Windows 支持** — macOS / Linux 需自行添加平台依赖
 
@@ -54,6 +55,7 @@ cargo build --release --no-default-features
 2. 确保设备蓝牙已开启
 3. 运行程序，自动扫描并连接心率设备
 4. 心率数据在原生窗口实时显示，同时通过 HTTP API 提供访问
+5. 点击右上角齿轮图标打开设置面板，按需调整配置
 
 ## HTTP API
 
@@ -61,15 +63,23 @@ cargo build --release --no-default-features
 |------|------|
 | `GET /heart-rate` | 当前心率 JSON |
 | `GET /heart-rate-stream` | SSE 实时心率数据流 |
+| `GET /settings` | 获取当前配置 |
+| `PUT /settings` | 更新配置（JSON body） |
 | `GET /health` | 健康检查 |
 
-默认地址 `http://127.0.0.1:3030`，端口冲突时自动使用随机端口。
+默认地址 `http://127.0.0.1:3030`，端口可在设置面板中修改，端口冲突时自动使用随机端口。
 
-## 环境变量
+## 配置
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `MIBAND_ALLOWED_DEVICES` | 允许连接的设备名称关键词（逗号分隔） | `band,amazfit,watch,mi` |
+配置保存在系统配置目录（Windows 为 `%APPDATA%/band-heart-rate/settings.json`），也可通过设置面板或 HTTP API 修改。
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `max_heart_rate` | 最大心率（影响区间划分） | `190` |
+| `allowed_devices` | 允许连接的设备关键词（逗号分隔） | `band,amazfit,watch,mi` |
+| `server_port` | HTTP 服务端口 | `3030` |
+| `auto_start` | 开机自启动 | `false` |
+| `minimize_to_tray` | 关闭时最小化到托盘 | `true` |
 
 ## 兼容设备
 
@@ -79,13 +89,17 @@ cargo build --release --no-default-features
 
 ## 截图
 
-**后端原生界面**
+**Web 界面**
 
-![后端原生界面](doc/1.png)
+![Web 界面](doc/1.png)
 
-**前端 Web 界面**
+**主界面**
 
-![前端 Web 界面](doc/2.png)
+![主界面](doc/2.png)
+
+**设置面板**
+
+![设置面板](doc/3.png)
 
 ## License
 
