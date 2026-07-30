@@ -33,9 +33,18 @@ fn get_zone(hr: u16, max_hr: u16) -> (&'static str, &'static str) {
 /// Blend zone color at 12% opacity over background #0a0e16
 fn zone_bg_color(hex: &str) -> slint::Color {
     let hex = hex.trim_start_matches('#');
-    let r = hex.get(0..2).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
-    let g = hex.get(2..4).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
-    let b = hex.get(4..6).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0) as f64;
+    let r = hex
+        .get(0..2)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0) as f64;
+    let g = hex
+        .get(2..4)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0) as f64;
+    let b = hex
+        .get(4..6)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0) as f64;
     let bg_r = 10.0f64;
     let bg_g = 14.0f64;
     let bg_b = 22.0f64;
@@ -48,9 +57,18 @@ fn zone_bg_color(hex: &str) -> slint::Color {
 
 fn parse_color(hex: &str) -> slint::Color {
     let hex = hex.trim_start_matches('#');
-    let r = hex.get(0..2).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
-    let g = hex.get(2..4).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
-    let b = hex.get(4..6).and_then(|s| u8::from_str_radix(s, 16).ok()).unwrap_or(0);
+    let r = hex
+        .get(0..2)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0);
+    let g = hex
+        .get(2..4)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0);
+    let b = hex
+        .get(4..6)
+        .and_then(|s| u8::from_str_radix(s, 16).ok())
+        .unwrap_or(0);
     slint::Color::from_rgb_u8(r, g, b)
 }
 
@@ -421,7 +439,7 @@ pub fn run(
                 let text = format!("http://127.0.0.1:{port}");
                 #[cfg(target_os = "windows")]
                 {
-                    use clipboard_win::{set_clipboard, formats::Unicode};
+                    use clipboard_win::{formats::Unicode, set_clipboard};
                     let _ = set_clipboard(Unicode, &text);
                 }
                 #[cfg(not(target_os = "windows"))]

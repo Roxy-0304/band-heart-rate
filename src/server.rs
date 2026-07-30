@@ -89,7 +89,10 @@ async fn update_settings(
     new_config.save().ok();
     state.config_tx.send(new_config.clone()).ok();
     if new_config.server_port != old_port {
-        tracing::warn!("HTTP 端口已更改为 {}，需要重启才能生效", new_config.server_port);
+        tracing::warn!(
+            "HTTP 端口已更改为 {}，需要重启才能生效",
+            new_config.server_port
+        );
     }
     Json(new_config)
 }

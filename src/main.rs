@@ -48,7 +48,9 @@ fn main() {
             let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
             rt.block_on(async {
                 let server_handle = tokio::spawn(async move {
-                    if let Err(err) = server::run_server(rx_server, config_tx_server, config_rx_server).await {
+                    if let Err(err) =
+                        server::run_server(rx_server, config_tx_server, config_rx_server).await
+                    {
                         tracing::error!("Web 服务器错误: {err}");
                     }
                 });

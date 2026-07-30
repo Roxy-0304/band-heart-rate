@@ -475,7 +475,7 @@ async fn handle_device(
 
     // 发送已连接状态
     let device_addr = device.id().to_string();
-    let device_name = device.name_async().await.ok().map(String::from);
+    let device_name = device.name_async().await.ok();
     let da = device_addr.clone();
     let dn = device_name.clone();
     tx.send_replace(HeartRateReading {
