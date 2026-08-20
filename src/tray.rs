@@ -95,6 +95,15 @@ pub fn run(
     let _ = menu.append(&copy_item);
     let _ = menu.append(&quit_item);
 
+    // 根据初始语言设置菜单文本（避免首次启动时始终显示中文）
+    {
+        use crate::i18n::t;
+        let lang = config_rx.borrow().language.clone();
+        open_item.set_text(t(&lang, "menu_open"));
+        copy_item.set_text(t(&lang, "menu_copy"));
+        quit_item.set_text(t(&lang, "menu_quit"));
+    }
+
     let tray = tray_icon::TrayIconBuilder::new()
         .with_tooltip("Band Heart Rate Monitor")
         .with_icon(icon)
@@ -175,9 +184,25 @@ pub fn run(
 
     tracing::info!("系统托盘已启动");
 
+    // 克隆菜单项引用，用于事件循环中更新文本
+    let open_item = open_item.clone();
+    let copy_item = copy_item.clone();
+    let quit_item = quit_item.clone();
+    let mut last_lang = config_rx.borrow().language.clone();
+
     // --- tao event loop (main thread) ---
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
+
+        // 检查语言变化，更新菜单文本
+        let current_lang = config_rx.borrow().language.clone();
+        if current_lang != last_lang {
+            last_lang = current_lang;
+            use crate::i18n::t;
+            open_item.set_text(t(&last_lang, "menu_open"));
+            copy_item.set_text(t(&last_lang, "menu_copy"));
+            quit_item.set_text(t(&last_lang, "menu_quit"));
+        }
 
         // Process tooltip updates from background thread
         while let Ok(cmd) = cmd_rx.try_recv() {

@@ -98,7 +98,6 @@ async fn update_settings(
     State(state): State<ControlState>,
     Json(new_config): Json<crate::config::Config>,
 ) -> Json<crate::config::Config> {
-    new_config.save().ok();
-    state.config_tx.send(new_config.clone()).ok();
-    Json(new_config)
+    let config = crate::config::apply_config(&state.config_tx, new_config, None).await;
+    Json(config)
 }

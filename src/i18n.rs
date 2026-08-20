@@ -171,6 +171,14 @@ pub fn t(lang: &str, key: &str) -> String {
         ("zh", "panel_lang_en") => "English",
         ("en", "panel_lang_en") => "English",
 
+        // 菜单
+        ("zh", "menu_open") => "打开控制面板",
+        ("en", "menu_open") => "Open Control Panel",
+        ("zh", "menu_copy") => "复制心率地址",
+        ("en", "menu_copy") => "Copy Heart Rate URL",
+        ("zh", "menu_quit") => "退出",
+        ("en", "menu_quit") => "Quit",
+
         // 兜底
         _ => return key.to_string(),
     };

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use bluest::{btuuid::bluetooth_uuid_from_u16, Adapter, Device, Uuid};
@@ -131,6 +132,7 @@ pub async fn run_loop(
     config_rx: watch::Receiver<Config>,
     discovered: Arc<Mutex<Vec<DiscoveredDevice>>>,
     mut ble_cmd_rx: mpsc::Receiver<BleCommand>,
+    cancel_flag: Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     let mut session = BleSession::new();
 
@@ -153,6 +155,7 @@ pub async fn run_loop(
                 }
                 BleCommand::Disconnect => {
                     tracing::info!("收到断开命令，断开当前连接");
+                    cancel_flag.store(true, Ordering::Relaxed);
                     tx.send_replace(HeartRateReading::default());
                     session.has_ever_connected = false;
                     session.disconnect_time = None;
@@ -227,7 +230,7 @@ pub async fn run_loop(
                     device_id
                 );
             }
-            match handle_device(&adapter, device, tx.clone()).await {
+            match handle_device(&adapter, device, tx.clone(), Some(cancel_flag.clone())).await {
                 Ok(()) => {
                     session.mark_connected(device_id);
                     connected_this_round = true;
@@ -275,8 +278,21 @@ pub async fn run_loop(
             session.reconnect_attempts = 0;
             tracing::info!("所有设备忙碌或不可达，进入轻量轮询模式...");
 
-            poll_for_available_device(&adapter, tx.clone(), &session.known_ids, &config_rx).await?;
-            session.disconnect_time = None;
+            match poll_for_available_device(&adapter, tx.clone(), &session.known_ids, &config_rx)
+                .await
+            {
+                Ok(Some(device_id)) => {
+                    // 轮询成功连接了设备（设备已断开），标记为已知设备
+                    session.mark_connected(device_id);
+                    session.disconnect_time = None;
+                }
+                Ok(None) => {
+                    session.disconnect_time = None;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
             continue;
         }
     }
@@ -309,7 +325,8 @@ async fn scan_all_devices(
     };
 
     let mut seen_ids: HashSet<String> = HashSet::new();
-    let mut devices: Vec<Device> = Vec::new();
+    // 设备及其名称一起存储，避免后续重复异步获取
+    let mut devices: Vec<(Device, String)> = Vec::new();
 
     let overall_deadline = Instant::now() + Duration::from_secs(SCAN_ATTEMPT_TIMEOUT_SECS);
     let settle_duration = Duration::from_secs(3);
@@ -336,10 +353,10 @@ async fn scan_all_devices(
 
         match tokio::time::timeout(wait_timeout, scan.next()).await {
             Ok(Some(Ok(device))) => {
-                let name = device.name_async().await;
+                let name = device.name_async().await.unwrap_or_default().to_string();
                 let did = device.id().to_string();
                 if seen_ids.insert(did.clone()) {
-                    devices.push(device);
+                    devices.push((device, name.clone()));
                     if !is_reconnecting {
                         tracing::info!("发现设备: [{did}] {name:?}");
                     }
@@ -363,20 +380,14 @@ async fn scan_all_devices(
 
     tx.send_replace(HeartRateReading::default());
 
-    // 发布发现的设备到共享状态
-    // 先收集 ID（同步），释放锁后再异步获取名称
-    let device_ids: Vec<String> = devices.iter().map(|d| d.id().to_string()).collect();
-    let mut names = Vec::with_capacity(device_ids.len());
-    for d in &devices {
-        names.push(d.name_async().await.unwrap_or_default().to_string());
-    }
+    // 发布发现的设备到共享状态（名称在扫描阶段已获取，无需再次异步调用）
     {
         let mut list = discovered.lock().unwrap();
         list.clear();
-        for (id, name) in device_ids.into_iter().zip(names) {
+        for (d, name) in &devices {
             list.push(DiscoveredDevice {
-                id,
-                name,
+                id: d.id().to_string(),
+                name: name.clone(),
                 rssi: None,
             });
         }
@@ -388,18 +399,20 @@ async fn scan_all_devices(
     if !is_reconnecting {
         tracing::info!("扫描完成，发现 {} 个设备", devices.len());
     }
-    Ok(devices)
+    Ok(devices.into_iter().map(|(d, _)| d).collect())
 }
 
 // ===== 轻量轮询 =====
 
 /// 全部设备被占时，用较短的扫描快速轮询是否有人释放
+/// 返回 Ok(Some(device_id)) 表示成功连接了某个设备（已断开），Ok(None) 不会发生，
+/// Err 表示超时退出。
 async fn poll_for_available_device(
     adapter: &Adapter,
     tx: watch::Sender<HeartRateReading>,
     known_ids: &HashSet<String>,
     config_rx: &watch::Receiver<Config>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<String>> {
     let deadline = Duration::from_secs(SCAN_TOTAL_TIMEOUT_SECS);
     let poll_duration = Duration::from_secs(5);
     let start = Instant::now();
@@ -471,10 +484,11 @@ async fn poll_for_available_device(
                 continue;
             }
             printfl_inline!("[轮询 #{poll_count}] 尝试连接设备 {}...", device.id());
-            match handle_device(adapter, device, tx.clone()).await {
+            match handle_device(adapter, device, tx.clone(), None).await {
                 Ok(()) => {
-                    tracing::info!("[✓] 轮询成功，已连接设备 {}", device.id());
-                    return Ok(());
+                    let device_id = device.id().to_string();
+                    tracing::info!("[✓] 轮询成功，已连接设备 {}", device_id);
+                    return Ok(Some(device_id));
                 }
                 Err(_err) => {
                     // ReconnectError 表示设备短暂连接后断开/停止广播，不算轮询成功
@@ -498,6 +512,7 @@ async fn handle_device(
     adapter: &Adapter,
     device: &Device,
     tx: watch::Sender<HeartRateReading>,
+    cancel_flag: Option<Arc<AtomicBool>>,
 ) -> anyhow::Result<()> {
     tracing::info!("正在连接设备: {}", device.id());
 
@@ -546,6 +561,16 @@ async fn handle_device(
     let normal_timeout = Duration::from_secs(NORMAL_DATA_TIMEOUT_SECS);
 
     loop {
+        // 检查是否收到断开命令
+        if let Some(ref flag) = cancel_flag {
+            if flag.load(Ordering::Relaxed) {
+                flag.store(false, Ordering::Relaxed);
+                tracing::info!("收到取消信号，立即断开");
+                return cleanup_and_disconnect(adapter, device, tx, ReconnectError::Disconnected)
+                    .await;
+            }
+        }
+
         let timeout_duration = if !first_data_received {
             initial_timeout
         } else {
@@ -650,7 +675,9 @@ fn parse_heart_rate(data: &[u8]) -> Option<(u16, Option<bool>)> {
     Some((heart_rate, sensor_contact))
 }
 
-/// 清理状态：重置发送 + 断开连接 + 返回错误
+/// 清理状态：重置发送 + 断开连接 + 返回结果
+/// - StoppedBroadcasting（通知流正常结束/超时）→ Ok — 表示设备曾经成功连接
+/// - Disconnected（物理断开）→ Err — 表示连接异常断开
 async fn cleanup_and_disconnect(
     adapter: &Adapter,
     device: &Device,
@@ -659,7 +686,10 @@ async fn cleanup_and_disconnect(
 ) -> anyhow::Result<()> {
     tx.send_replace(HeartRateReading::default());
     let _ = tokio::time::timeout(Duration::from_secs(3), adapter.disconnect_device(device)).await;
-    Err(err.into())
+    match err {
+        ReconnectError::StoppedBroadcasting => Ok(()),
+        ReconnectError::Disconnected => Err(err.into()),
+    }
 }
 
 /// 根据设备 ID 尝试连接（手动选择）
@@ -685,7 +715,7 @@ async fn try_connect_by_id(
         }
         if let Ok(Some(Ok(device))) = tokio::time::timeout(remaining, scan.next()).await {
             if device.id().to_string() == target_id {
-                return handle_device(adapter, &device, tx).await;
+                return handle_device(adapter, &device, tx, None).await;
             }
         }
     }

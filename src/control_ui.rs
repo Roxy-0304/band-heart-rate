@@ -124,7 +124,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         var $=function(s){return document.getElementById(s)};
         var toastTimer=null;
         function toast(m){var t2=$("toast");t2.textContent=m;t2.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(function(){t2.classList.remove("show")},1800);}
-        function esc(s){var d=document.createElement("span");d.textContent=s;return d.innerHTML}
+        function esc(s){var d=document.createElement("span");d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;')}
         var currentAddr=null;
 
         async function refresh(){

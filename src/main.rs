@@ -39,13 +39,14 @@ fn main() {
 
     tracing::info!("Band Heart Rate v{}", env!("CARGO_PKG_VERSION"));
 
+    use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
     use tokio::sync::{mpsc, watch};
     use types::HeartRateReading;
 
     let config_manager = config::ConfigManager::new();
     let web_port = config_manager.rx.borrow().server_port;
-    let control_port = web_port.wrapping_add(1).max(1);
+    let control_port = if web_port < 65535 { web_port + 1 } else { 1 };
 
     let (tx, rx_ble) = watch::channel(HeartRateReading::default());
 
@@ -59,6 +60,8 @@ fn main() {
     let (ble_cmd_tx, ble_cmd_rx) = mpsc::channel::<types::BleCommand>(16);
     // 设备发现共享状态
     let discovered: Arc<Mutex<Vec<types::DiscoveredDevice>>> = Arc::new(Mutex::new(Vec::new()));
+    // BLE 断开取消标志
+    let cancel_flag: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
     // 控制服务器状态
     let control_state = types::ControlState {
@@ -133,8 +136,15 @@ fn main() {
                 }
             }
 
-            if let Err(e) =
-                ble::run_loop(adapter, tx.clone(), config_rx_ble, discovered, ble_cmd_rx).await
+            if let Err(e) = ble::run_loop(
+                adapter,
+                tx.clone(),
+                config_rx_ble,
+                discovered,
+                ble_cmd_rx,
+                cancel_flag,
+            )
+            .await
             {
                 tracing::error!("蓝牙循环退出: {e}");
                 tx.send_replace(HeartRateReading {

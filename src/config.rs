@@ -44,15 +44,35 @@ impl Config {
         }
     }
 
-    pub fn save(&self) -> anyhow::Result<()> {
+    pub async fn save(&self) -> anyhow::Result<()> {
         let path = Self::settings_path();
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            tokio::fs::create_dir_all(parent).await?;
         }
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, json)?;
+        tokio::fs::write(path, json).await?;
         Ok(())
     }
+}
+
+/// 应用新配置：保存到文件 + 广播到所有订阅者
+/// 如果提供了 old_port，端口变化时会输出警告
+pub async fn apply_config(
+    config_tx: &watch::Sender<Config>,
+    new_config: Config,
+    old_port: Option<u16>,
+) -> Config {
+    new_config.save().await.ok();
+    config_tx.send(new_config.clone()).ok();
+    if let Some(old) = old_port {
+        if new_config.server_port != old {
+            tracing::warn!(
+                "HTTP 端口已更改为 {}，需要重启才能生效",
+                new_config.server_port
+            );
+        }
+    }
+    new_config
 }
 
 pub struct ConfigManager {
