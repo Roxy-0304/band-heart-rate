@@ -55,11 +55,8 @@ jobs:
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Build (with GUI)
+      - name: Build
         run: cargo build --release
-
-      - name: Build (without GUI)
-        run: cargo build --release --no-default-features
 
       - name: Run tests
         run: cargo test --release

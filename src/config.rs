@@ -11,6 +11,8 @@ pub struct Config {
     pub server_port: u16,
     pub auto_start: bool,
     pub minimize_to_tray: bool,
+    #[serde(default)]
+    pub language: String,
 }
 
 impl Default for Config {
@@ -21,6 +23,7 @@ impl Default for Config {
             server_port: 3030,
             auto_start: false,
             minimize_to_tray: true,
+            language: "zh".into(),
         }
     }
 }

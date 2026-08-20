@@ -27,19 +27,32 @@ fn load_tray_icon() -> anyhow::Result<tray_icon::Icon> {
 }
 
 /// Build the tooltip string from heart rate reading
-fn build_tooltip(reading: &HeartRateReading) -> String {
+fn build_tooltip(reading: &HeartRateReading, lang: &str) -> String {
+    use crate::i18n::{t, tf};
     if let Some(ref err) = reading.error {
         format!("❌ {err}")
     } else if reading.scanning {
-        "🔍 正在扫描...".to_string()
+        t(lang, "tip_scanning").to_string()
     } else if reading.connected && reading.heart_rate > 0 {
-        let name = reading.device_name.as_deref().unwrap_or("未知设备");
-        format!("❤️ {} BPM — {}", reading.heart_rate, name)
+        let name = reading.device_name.as_deref().unwrap_or(if lang == "zh" {
+            "未知设备"
+        } else {
+            "Unknown"
+        });
+        tf(
+            lang,
+            "tip_connected",
+            &[&reading.heart_rate.to_string(), name],
+        )
     } else if reading.connected {
-        let name = reading.device_name.as_deref().unwrap_or("未知设备");
-        format!("🔗 已连接 — {name}")
+        let name = reading.device_name.as_deref().unwrap_or(if lang == "zh" {
+            "未知设备"
+        } else {
+            "Unknown"
+        });
+        tf(lang, "tip_connected_no_hr", &[name])
     } else {
-        "⚠️ 已断开".to_string()
+        t(lang, "tip_disconnected").to_string()
     }
 }
 
@@ -48,6 +61,7 @@ pub fn run(
     rx: tokio::sync::watch::Receiver<HeartRateReading>,
     web_port: u16,
     control_port: u16,
+    config_rx: tokio::sync::watch::Receiver<crate::config::Config>,
 ) -> anyhow::Result<()> {
     use tao::platform::windows::EventLoopBuilderExtWindows;
     let mut event_loop = EventLoopBuilder::new();
@@ -91,6 +105,7 @@ pub fn run(
     {
         let cmd_tx = cmd_tx.clone();
         let mut rx = rx.clone();
+        let config_rx = config_rx.clone();
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
             rt.block_on(async move {
@@ -101,39 +116,51 @@ pub fn run(
 
                 while rx.changed().await.is_ok() {
                     let reading = rx.borrow().clone();
+                    let lang = config_rx.borrow().language.clone();
 
                     // --- 更新 tooltip（需要主线程处理） ---
-                    let tooltip = build_tooltip(&reading);
+                    let tooltip = build_tooltip(&reading, &lang);
                     if tooltip != last_tooltip {
                         last_tooltip = tooltip.clone();
                         let _ = cmd_tx.send(tooltip);
                     }
 
                     // --- 发送通知（直接在后台线程发，不经过主线程消息泵） ---
+                    use crate::i18n::t;
 
                     // 1. 开始搜索：scanning false→true
                     if reading.scanning && !was_scanning {
-                        notify("扫描中", "正在扫描设备...");
+                        notify(&t(&lang, "notif_scanning"), &t(&lang, "msg_scanning"));
                     }
 
                     // 2. 已连接：connected false→true
                     if reading.connected && !was_connected {
-                        let name = reading.device_name.as_deref().unwrap_or("设备");
-                        notify("已连接", &format!("已连接 {name}"));
+                        let name = reading.device_name.as_deref().unwrap_or(if lang == "zh" {
+                            "设备"
+                        } else {
+                            "device"
+                        });
+                        notify(
+                            &t(&lang, "notif_connected"),
+                            &format!("{} {name}", t(&lang, "msg_connected")),
+                        );
                     }
 
                     // 3. 断开：connected true→false 且无 error
                     if !reading.connected && was_connected && reading.error.is_none() {
-                        notify("断开", "设备已断开，正在重连...");
+                        notify(
+                            &t(&lang, "notif_disconnected"),
+                            &t(&lang, "msg_disconnected"),
+                        );
                     }
 
                     // 4. 错误 / 超时：error 变化
                     if let Some(ref err) = reading.error {
                         if last_error.as_ref() != Some(err) {
-                            if err.contains("超时") {
-                                notify("超时", err);
+                            if err.contains("超时") || err.contains("timeout") {
+                                notify(&t(&lang, "notif_timeout"), err);
                             } else {
-                                notify("错误", err);
+                                notify(&t(&lang, "notif_error"), err);
                             }
                         }
                     }

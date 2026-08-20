@@ -4,6 +4,7 @@ mod ble;
 mod config;
 mod control_server;
 mod control_ui;
+mod i18n;
 mod macros;
 mod server;
 mod tray;
@@ -52,6 +53,7 @@ fn main() {
     let config_tx_server = config_manager.tx.clone();
     let config_rx_server = config_manager.rx.clone();
     let config_rx_ble = config_manager.rx.clone();
+    let config_rx_tray = config_manager.rx.clone();
 
     // BLE 命令通道
     let (ble_cmd_tx, ble_cmd_rx) = mpsc::channel::<types::BleCommand>(16);
@@ -147,7 +149,7 @@ fn main() {
     });
 
     // 主线程：系统托盘事件循环
-    if let Err(e) = tray::run(rx_ble, web_port, control_port) {
+    if let Err(e) = tray::run(rx_ble, web_port, control_port, config_rx_tray) {
         tracing::error!("托盘退出: {e}");
     }
 }
