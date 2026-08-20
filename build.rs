@@ -1,7 +1,4 @@
 fn main() {
-    #[cfg(feature = "gui")]
-    slint_build::compile("ui/app.slint").unwrap();
-
     // Embed application icon for Windows (taskbar, Alt+Tab, title bar)
     #[cfg(windows)]
     {

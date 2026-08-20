@@ -8,7 +8,9 @@ use tokio::time::{timeout, Duration};
 
 use crate::config::Config;
 use crate::macros::printfl_inline;
-use crate::types::{HeartRateReading, ReconnectError};
+use crate::types::{HeartRateReading, ReconnectError, DiscoveredDevice, BleCommand};
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 
 const HRS_UUID: Uuid = bluetooth_uuid_from_u16(0x180D);
 const HRM_UUID: Uuid = bluetooth_uuid_from_u16(0x2A37);
@@ -127,10 +129,39 @@ pub async fn run_loop(
     adapter: Adapter,
     tx: watch::Sender<HeartRateReading>,
     config_rx: watch::Receiver<Config>,
+    discovered: Arc<Mutex<Vec<DiscoveredDevice>>>,
+    mut ble_cmd_rx: mpsc::Receiver<BleCommand>,
 ) -> anyhow::Result<()> {
     let mut session = BleSession::new();
 
     loop {
+        // 检查是否有手动选择命令
+        while let Ok(cmd) = ble_cmd_rx.try_recv() {
+            match cmd {
+                BleCommand::SelectDevice(device_id) => {
+                    tracing::info!("手动选择连接设备: {device_id}");
+                    // 扫描找设备并连接
+                    match try_connect_by_id(&adapter, &device_id, tx.clone()).await {
+                        Ok(()) => {
+                            session.mark_connected(device_id);
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::warn!("手动连接失败: {e}");
+                        }
+                    }
+                }
+                BleCommand::Disconnect => {
+                    tracing::info!("收到断开命令，断开当前连接");
+                    tx.send_replace(HeartRateReading::default());
+                    session.has_ever_connected = false;
+                    session.disconnect_time = None;
+                    session.reconnect_attempts = 0;
+                    session.known_ids.clear();
+                }
+            }
+        }
+
         session.check_timeout()?;
         let config = config_rx.borrow().clone();
 
@@ -149,7 +180,7 @@ pub async fn run_loop(
         }
 
         // 扫描设备
-        let devices = match scan_all_devices(&adapter, tx.clone(), is_reconnecting).await {
+        let devices = match scan_all_devices(&adapter, tx.clone(), is_reconnecting, &discovered).await {
             Ok(devices) => devices,
             Err(err) => {
                 if is_reconnecting {
@@ -258,6 +289,7 @@ async fn scan_all_devices(
     adapter: &Adapter,
     tx: watch::Sender<HeartRateReading>,
     is_reconnecting: bool,
+    discovered: &Arc<Mutex<Vec<DiscoveredDevice>>>,
 ) -> anyhow::Result<Vec<Device>> {
     tx.send_replace(HeartRateReading {
         scanning: true,
@@ -329,6 +361,20 @@ async fn scan_all_devices(
     }
 
     tx.send_replace(HeartRateReading::default());
+
+    // 发布发现的设备到共享状态
+    {
+        let mut list = discovered.lock().unwrap();
+        list.clear();
+        for d in &devices {
+            let name = d.name_async().await.unwrap_or_default();
+            list.push(DiscoveredDevice {
+                id: d.id().to_string(),
+                name: name.to_string(),
+                rssi: None,
+            });
+        }
+    }
 
     if devices.is_empty() {
         anyhow::bail!("未找到任何设备");
@@ -608,4 +654,34 @@ async fn cleanup_and_disconnect(
     tx.send_replace(HeartRateReading::default());
     let _ = tokio::time::timeout(Duration::from_secs(3), adapter.disconnect_device(device)).await;
     Err(err.into())
+}
+
+/// 根据设备 ID 尝试连接（手动选择）
+async fn try_connect_by_id(
+    adapter: &Adapter,
+    target_id: &str,
+    tx: watch::Sender<HeartRateReading>,
+) -> anyhow::Result<()> {
+    // 扫描找设备
+    let mut scan = tokio::time::timeout(
+        Duration::from_secs(5),
+        adapter.discover_devices(&[HRS_UUID]),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("扫描超时"))?
+    .map_err(|e| anyhow::anyhow!("扫描失败: {e}"))?;
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() { break; }
+        if let Ok(Some(Ok(device))) =
+            tokio::time::timeout(remaining, scan.next()).await
+        {
+            if device.id().to_string() == target_id {
+                return handle_device(adapter, &device, tx).await;
+            }
+        }
+    }
+    anyhow::bail!("未找到设备 {target_id}")
 }

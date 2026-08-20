@@ -1,7 +1,6 @@
 # Rust / Cargo
 target/
 gen/
-**/slint_generated*
 **/node_modules/
 dist/
 pkg/
@@ -45,3 +44,6 @@ tarpaulin-report.html
 *.msi
 *.wixobj
 *.wixpdb
+
+# Project context (not for repo)
+prompt.md

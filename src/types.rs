@@ -1,7 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
-use tokio::sync::watch;
+use std::sync::{Arc, Mutex};
+use tokio::sync::{mpsc, watch};
 
 /// 设备连接/通信过程中发生的可重连错误类型
 pub enum ReconnectError {
@@ -40,6 +41,42 @@ pub struct HeartRateReading {
     pub device_address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_name: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DiscoveredDevice {
+    pub id: String,
+    pub name: String,
+    pub rssi: Option<i16>,
+}
+
+/// BLE 层发给控制服务器的命令
+pub enum BleCommand {
+    /// 手动选择连接某个设备
+    SelectDevice(String),
+    /// 断开当前连接
+    Disconnect,
+}
+
+/// 全局共享状态
+pub struct ControlState {
+    pub rx: watch::Receiver<HeartRateReading>,
+    pub config_rx: watch::Receiver<crate::config::Config>,
+    pub config_tx: watch::Sender<crate::config::Config>,
+    pub discovered: Arc<Mutex<Vec<DiscoveredDevice>>>,
+    pub ble_cmd_tx: mpsc::Sender<BleCommand>,
+}
+
+impl Clone for ControlState {
+    fn clone(&self) -> Self {
+        Self {
+            rx: self.rx.clone(),
+            config_rx: self.config_rx.clone(),
+            config_tx: self.config_tx.clone(),
+            discovered: Arc::clone(&self.discovered),
+            ble_cmd_tx: self.ble_cmd_tx.clone(),
+        }
+    }
 }
 
 #[derive(Clone)]
