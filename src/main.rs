@@ -131,7 +131,9 @@ fn main() {
                 }
             }
 
-            if let Err(e) = ble::run_loop(adapter, tx.clone(), config_rx_ble, discovered, ble_cmd_rx).await {
+            if let Err(e) =
+                ble::run_loop(adapter, tx.clone(), config_rx_ble, discovered, ble_cmd_rx).await
+            {
                 tracing::error!("蓝牙循环退出: {e}");
                 tx.send_replace(HeartRateReading {
                     error: Some(format!("蓝牙服务已停止: {e}")),

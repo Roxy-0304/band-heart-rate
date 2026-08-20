@@ -44,7 +44,11 @@ async fn heart_rate(State(state): State<ControlState>) -> Json<crate::types::Hea
 }
 
 async fn devices(State(state): State<ControlState>) -> Json<Vec<DiscoveredDevice>> {
-    let list = state.discovered.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let list = state
+        .discovered
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     Json(list)
 }
 
@@ -57,16 +61,32 @@ async fn select_device(
     State(state): State<ControlState>,
     Json(req): Json<SelectReq>,
 ) -> Result<Json<&'static str>, (axum::http::StatusCode, String)> {
-    state.ble_cmd_tx.send(BleCommand::SelectDevice(req.device_id))
+    state
+        .ble_cmd_tx
+        .send(BleCommand::SelectDevice(req.device_id))
         .await
-        .map_err(|_| (axum::http::StatusCode::SERVICE_UNAVAILABLE, "BLE service unavailable".to_string()))?;
+        .map_err(|_| {
+            (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "BLE service unavailable".to_string(),
+            )
+        })?;
     Ok(Json("ok"))
 }
 
-async fn post_disconnect(State(state): State<ControlState>) -> Result<Json<&'static str>, (axum::http::StatusCode, String)> {
-    state.ble_cmd_tx.send(BleCommand::Disconnect)
+async fn post_disconnect(
+    State(state): State<ControlState>,
+) -> Result<Json<&'static str>, (axum::http::StatusCode, String)> {
+    state
+        .ble_cmd_tx
+        .send(BleCommand::Disconnect)
         .await
-        .map_err(|_| (axum::http::StatusCode::SERVICE_UNAVAILABLE, "BLE service unavailable".to_string()))?;
+        .map_err(|_| {
+            (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "BLE service unavailable".to_string(),
+            )
+        })?;
     Ok(Json("ok"))
 }
 

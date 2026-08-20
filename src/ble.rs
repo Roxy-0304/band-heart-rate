@@ -8,7 +8,7 @@ use tokio::time::{timeout, Duration};
 
 use crate::config::Config;
 use crate::macros::printfl_inline;
-use crate::types::{HeartRateReading, ReconnectError, DiscoveredDevice, BleCommand};
+use crate::types::{BleCommand, DiscoveredDevice, HeartRateReading, ReconnectError};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -180,22 +180,23 @@ pub async fn run_loop(
         }
 
         // 扫描设备
-        let devices = match scan_all_devices(&adapter, tx.clone(), is_reconnecting, &discovered).await {
-            Ok(devices) => devices,
-            Err(err) => {
-                if is_reconnecting {
-                    printfl_inline!(
-                        "[重连 #{}] 扫描失败，等待重试...",
-                        session.reconnect_attempts
-                    );
-                } else {
-                    tracing::warn!("扫描失败: {err:?}");
+        let devices =
+            match scan_all_devices(&adapter, tx.clone(), is_reconnecting, &discovered).await {
+                Ok(devices) => devices,
+                Err(err) => {
+                    if is_reconnecting {
+                        printfl_inline!(
+                            "[重连 #{}] 扫描失败，等待重试...",
+                            session.reconnect_attempts
+                        );
+                    } else {
+                        tracing::warn!("扫描失败: {err:?}");
+                    }
+                    tx.send_replace(HeartRateReading::default());
+                    tokio::time::sleep(Duration::from_secs(SCAN_RETRY_DELAY_SECS)).await;
+                    continue;
                 }
-                tx.send_replace(HeartRateReading::default());
-                tokio::time::sleep(Duration::from_secs(SCAN_RETRY_DELAY_SECS)).await;
-                continue;
-            }
-        };
+            };
 
         // 尝试连接每个设备 — known_ids 优先
         let keywords = allowed_keywords(&config);
@@ -363,14 +364,19 @@ async fn scan_all_devices(
     tx.send_replace(HeartRateReading::default());
 
     // 发布发现的设备到共享状态
+    // 先收集 ID（同步），释放锁后再异步获取名称
+    let device_ids: Vec<String> = devices.iter().map(|d| d.id().to_string()).collect();
+    let mut names = Vec::with_capacity(device_ids.len());
+    for d in &devices {
+        names.push(d.name_async().await.unwrap_or_default().to_string());
+    }
     {
         let mut list = discovered.lock().unwrap();
         list.clear();
-        for d in &devices {
-            let name = d.name_async().await.unwrap_or_default();
+        for (id, name) in device_ids.into_iter().zip(names) {
             list.push(DiscoveredDevice {
-                id: d.id().to_string(),
-                name: name.to_string(),
+                id,
+                name,
                 rssi: None,
             });
         }
@@ -674,10 +680,10 @@ async fn try_connect_by_id(
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() { break; }
-        if let Ok(Some(Ok(device))) =
-            tokio::time::timeout(remaining, scan.next()).await
-        {
+        if remaining.is_zero() {
+            break;
+        }
+        if let Ok(Some(Ok(device))) = tokio::time::timeout(remaining, scan.next()).await {
             if device.id().to_string() == target_id {
                 return handle_device(adapter, &device, tx).await;
             }

@@ -1,6 +1,6 @@
 use std::sync::mpsc;
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::event::Event;
+use tao::event_loop::{ControlFlow, EventLoopBuilder};
 
 use crate::types::HeartRateReading;
 
@@ -154,11 +154,8 @@ pub fn run(
 
         // Process tooltip updates from background thread
         while let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                tooltip => {
-                    let _ = tray.set_tooltip(Some(&tooltip));
-                }
-            }
+            let tooltip = cmd;
+            let _ = tray.set_tooltip(Some(&tooltip));
         }
 
         // Process menu events from muda
