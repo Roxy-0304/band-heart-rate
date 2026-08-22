@@ -22,13 +22,17 @@ jobs:
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Build
-        run: cargo build --release
-
       - name: Get version
         id: version
         shell: bash
         run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cargo.toml version
+        shell: bash
+        run: sed -i 's/^version = ".*"/version = "${{ steps.version.outputs.version }}"/' Cargo.toml
+
+      - name: Build
+        run: cargo build --release
 
       - name: Rename artifact
         shell: powershell

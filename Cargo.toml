@@ -1,28 +1,28 @@
 [package]
 name = "band-heart-rate"
 authors = ["Roxy"]
-version = "26.8.1"
-edition = "2021"
+version = "0.0.0-dev"
+edition = "2024"
 repository = "https://github.com/Roxy-0304/band-heart-rate"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread", "signal", "fs"] }
-bluest = "0.6.8"
-futures-lite = "1.13.0"
-axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "signal", "fs"] }
+bluest = "0.6.9"
+futures-lite = "2.6.1"
+axum = { version = "0.8", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tray-icon = { version = "0.19", optional = true }
-muda = { version = "0.15", optional = true }
+tray-icon = { version = "0.24", optional = true }
+muda = { version = "0.19", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_Graphics_Gdi", "Win32_System_Console"], optional = true }
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_UI_Shell", "Win32_System_LibraryLoader", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_Graphics_Gdi", "Win32_System_Console"], optional = true }
 anyhow = "1"
 dirs = "6"
-tao = { version = "0.30", optional = true }
+tao = { version = "0.37", optional = true }
 notify-rust = { version = "4", optional = true }
 open = { version = "5", optional = true }
 clipboard-win = { version = "5", optional = true }
