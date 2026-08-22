@@ -49,7 +49,7 @@ cargo build --release
 cargo build --release --no-default-features
 ```
 
-**Requirements:** [Rust toolchain](https://www.rust-lang.org/tools/install) (rustup recommended)
+**Requirements:** [Rust toolchain](https://www.rust-lang.org/tools/install) (rustup recommended, Edition 2024)
 
 > **macOS / Linux users:** The tray version primarily targets Windows. The headless mode (`cargo build --release --no-default-features`) compiles on all platforms. To build the tray version on macOS/Linux, you need to install platform-specific system dependencies.
 

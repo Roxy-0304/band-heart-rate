@@ -49,7 +49,7 @@ cargo build --release
 cargo build --release --no-default-features
 ```
 
-**环境要求：** [Rust 工具链](https://www.rust-lang.org/tools/install)（推荐 rustup）
+**环境要求：** [Rust 工具链](https://www.rust-lang.org/tools/install)（推荐 rustup，Edition 2024）
 
 > **macOS / Linux 用户注意：** 托盘版本主要面向 Windows。非托盘模式（`cargo build --release --no-default-features`）在各平台均可编译。若在 macOS/Linux 上编译托盘版本，需自行安装平台相关系统依赖。
 
