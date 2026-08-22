@@ -13,7 +13,7 @@ mod web_ui;
 
 #[cfg(all(windows, feature = "tray"))]
 fn attach_console() {
-    use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+    use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
     unsafe {
         AttachConsole(ATTACH_PARENT_PROCESS);
     }

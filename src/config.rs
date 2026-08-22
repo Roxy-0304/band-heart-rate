@@ -64,13 +64,13 @@ pub async fn apply_config(
 ) -> Config {
     new_config.save().await.ok();
     config_tx.send(new_config.clone()).ok();
-    if let Some(old) = old_port {
-        if new_config.server_port != old {
-            tracing::warn!(
-                "HTTP 端口已更改为 {}，需要重启才能生效",
-                new_config.server_port
-            );
-        }
+    if let Some(old) = old_port
+        && new_config.server_port != old
+    {
+        tracing::warn!(
+            "HTTP 端口已更改为 {}，需要重启才能生效",
+            new_config.server_port
+        );
     }
     new_config
 }

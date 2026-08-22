@@ -1,6 +1,6 @@
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::get;
-use axum::{extract::State, Json, Router};
+use axum::{Json, Router, extract::State};
 
 use crate::config::Config;
 use crate::web_ui;

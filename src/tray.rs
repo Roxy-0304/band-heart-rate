@@ -164,13 +164,13 @@ pub fn run(
                     }
 
                     // 4. 错误 / 超时：error 变化
-                    if let Some(ref err) = reading.error {
-                        if last_error.as_ref() != Some(err) {
-                            if err.contains("超时") || err.contains("timeout") {
-                                notify(&t(&lang, "notif_timeout"), err);
-                            } else {
-                                notify(&t(&lang, "notif_error"), err);
-                            }
+                    if let Some(ref err) = reading.error
+                        && last_error.as_ref() != Some(err)
+                    {
+                        if err.contains("超时") || err.contains("timeout") {
+                            notify(&t(&lang, "notif_timeout"), err);
+                        } else {
+                            notify(&t(&lang, "notif_error"), err);
                         }
                     }
 

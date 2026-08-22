@@ -2,10 +2,10 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-use bluest::{btuuid::bluetooth_uuid_from_u16, Adapter, Device, Uuid};
+use bluest::{Adapter, Device, Uuid, btuuid::bluetooth_uuid_from_u16};
 use futures_lite::stream::StreamExt;
 use tokio::sync::watch;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 use crate::config::Config;
 use crate::macros::printfl_inline;
@@ -335,10 +335,10 @@ async fn scan_all_devices(
     loop {
         let now = Instant::now();
 
-        if let Some(sd) = settle_deadline {
-            if now >= sd {
-                break;
-            }
+        if let Some(sd) = settle_deadline
+            && now >= sd
+        {
+            break;
         }
         if now >= overall_deadline {
             break;
@@ -562,13 +562,12 @@ async fn handle_device(
 
     loop {
         // 检查是否收到断开命令
-        if let Some(ref flag) = cancel_flag {
-            if flag.load(Ordering::Relaxed) {
-                flag.store(false, Ordering::Relaxed);
-                tracing::info!("收到取消信号，立即断开");
-                return cleanup_and_disconnect(adapter, device, tx, ReconnectError::Disconnected)
-                    .await;
-            }
+        if let Some(ref flag) = cancel_flag
+            && flag.load(Ordering::Relaxed)
+        {
+            flag.store(false, Ordering::Relaxed);
+            tracing::info!("收到取消信号，立即断开");
+            return cleanup_and_disconnect(adapter, device, tx, ReconnectError::Disconnected).await;
         }
 
         let timeout_duration = if !first_data_received {
@@ -713,10 +712,10 @@ async fn try_connect_by_id(
         if remaining.is_zero() {
             break;
         }
-        if let Ok(Some(Ok(device))) = tokio::time::timeout(remaining, scan.next()).await {
-            if device.id().to_string() == target_id {
-                return handle_device(adapter, &device, tx, None).await;
-            }
+        if let Ok(Some(Ok(device))) = tokio::time::timeout(remaining, scan.next()).await
+            && device.id().to_string() == target_id
+        {
+            return handle_device(adapter, &device, tx, None).await;
         }
     }
     anyhow::bail!("未找到设备 {target_id}")

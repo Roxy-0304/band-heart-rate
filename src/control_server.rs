@@ -1,6 +1,6 @@
 use axum::response::Html;
 use axum::routing::{get, post};
-use axum::{extract::State, Json, Router};
+use axum::{Json, Router, extract::State};
 use serde::Deserialize;
 
 use crate::control_ui::CONTROL_HTML;
