@@ -1,7 +1,15 @@
+# ========================
 # Rust / Cargo
+# ========================
 target/
 gen/
-**/node_modules/
+Cargo.lock
+
+# ========================
+# Build Artifacts
+# ========================
+build/
+out/
 dist/
 pkg/
 *.pdb
@@ -9,41 +17,119 @@ pkg/
 *.dll
 *.so
 *.dylib
+*.o
+*.obj
+*.a
+*.lib
+*.exp
+*.ilk
+*.msi
+*.wixobj
+*.wixpdb
 
-# IDE
+# ========================
+# IDE / Editor
+# ========================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
 
-# OS
-.DS_Store
+# ========================
+# OS Files
+# ========================
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
 
-# Build
-build/
-out/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
 
+# Linux
+*~
+
+# ========================
+# User Home Symbolic Link
+# ========================
+~/
+
+# ========================
+# Project Context (not for repo)
+# ========================
+docs/
+prompt.md
+promat.md
+
+# ========================
+# Node.js (if using web frontend)
+# ========================
+**/node_modules/
+.npm/
+.yarn/
+.pnp.*
+
+# ========================
+# Logs
+# ========================
+*.log
+*.log.*
+logs/
+
+# ========================
+# Environment / Secrets
+# ========================
+.env
+.env.local
+.env.*.local
+.env.production
+
+# ========================
 # Test / Coverage
+# ========================
 coverage/
 *.profraw
 *.profdata
 lcov.info
 tarpaulin-report.html
+*.gcov
+*.gcno
+*.gcda
 
-# Logs
-*.log
-*.log.*
+# ========================
+# Python (if using scripts)
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
 
-# Environment
-.env
-.env.local
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
 
-# Release artifacts
-*.msi
-*.wixobj
-*.wixpdb
-
-# Project context (not for repo)
-prompt.md
+# ========================
+# Misc
+# ========================
+*.bak
+*.tmp
+*.temp
+.cache/
+/tmp/
