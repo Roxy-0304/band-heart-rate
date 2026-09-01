@@ -85,6 +85,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
                 <ul class="device-list" id="dlist"><li class="device-empty" data-i18n="panel_scanning">正在扫描…</li></ul>
             </div>
             <div class="btn-row">
+                <button class="btn btn-primary" id="btn-rescan" data-i18n="panel_rescan">重新扫描</button>
                 <button class="btn btn-danger" id="btn-disconnect" disabled data-i18n="panel_disconnect">断开连接</button>
             </div>
         </div>
@@ -104,7 +105,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         var I18N={zh:{},en:{}};
         var el=document.querySelectorAll("[data-i18n]");
         for(var i=0;i<el.length;i++){var k=el[i].getAttribute("data-i18n");if(el[i].textContent)I18N.zh[k]=el[i].textContent;}
-        I18N.en={panel_title:"Band Heart Rate",panel_status:"Status",panel_conn:"Connection",panel_hr:"Heart Rate",panel_device:"Device",panel_scan:"Scanning",panel_connected:"Connected",panel_disconnected:"Disconnected",panel_yes:"Yes",panel_no:"No",panel_devices:"Device List",panel_disconnect:"Disconnect",panel_settings:"Settings",panel_max_hr:"Max Heart Rate",panel_allowed:"Allowed Devices (comma separated)",panel_port:"Server Port",panel_save:"Save",panel_scanning:"Scanning...",panel_no_device:"No devices found",panel_unknown:"Unknown device"};
+        I18N.en={panel_title:"Band Heart Rate",panel_status:"Status",panel_conn:"Connection",panel_hr:"Heart Rate",panel_device:"Device",panel_scan:"Scanning",panel_connected:"Connected",panel_disconnected:"Disconnected",panel_yes:"Yes",panel_no:"No",panel_devices:"Device List",panel_disconnect:"Disconnect",panel_rescan:"Rescan",panel_settings:"Settings",panel_max_hr:"Max Heart Rate",panel_allowed:"Allowed Devices (comma separated)",panel_port:"Server Port",panel_save:"Save",panel_scanning:"Scanning...",panel_no_device:"No devices found",panel_unknown:"Unknown device"};
 
         var lang=localStorage.getItem("bhr-lang")||"zh";
         function t(k){return(I18N[lang]&&I18N[lang][k])||I18N.zh[k]||k;}
@@ -154,6 +155,9 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         });
         $("btn-disconnect").addEventListener("click",function(){
             fetch("/devices/disconnect",{method:"POST"}).then(function(){toast(t("panel_disconnected")||"Disconnected");}).catch(function(){toast(t("panel_op_fail")||"Failed");});
+        });
+        $("btn-rescan").addEventListener("click",function(){
+            fetch("/devices/rescan",{method:"POST"}).then(function(){toast(t("panel_rescanning")||"Rescanning...");}).catch(function(){toast(t("panel_op_fail")||"Failed");});
         });
         $("btn-save").addEventListener("click",function(){
             var v=parseInt($("c-port").value);if(isNaN(v)||v<1024||v>65535){toast(t("panel_port_invalid")||"Invalid port");return;}

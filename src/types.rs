@@ -56,6 +56,8 @@ pub enum BleCommand {
     SelectDevice(String),
     /// 断开当前连接
     Disconnect,
+    /// 重新扫描（重置超时状态，重新开始扫描）
+    Rescan,
 }
 
 /// 全局共享状态

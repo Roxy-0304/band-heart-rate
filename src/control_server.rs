@@ -13,6 +13,7 @@ pub async fn run_control_server(state: ControlState, port: u16) -> anyhow::Resul
         .route("/devices", get(devices))
         .route("/devices/select", post(select_device))
         .route("/devices/disconnect", post(post_disconnect))
+        .route("/devices/rescan", post(post_rescan))
         .route("/settings", get(get_settings).put(update_settings))
         .with_state(state);
 
@@ -80,6 +81,22 @@ async fn post_disconnect(
     state
         .ble_cmd_tx
         .send(BleCommand::Disconnect)
+        .await
+        .map_err(|_| {
+            (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "BLE service unavailable".to_string(),
+            )
+        })?;
+    Ok(Json("ok"))
+}
+
+async fn post_rescan(
+    State(state): State<ControlState>,
+) -> Result<Json<&'static str>, (axum::http::StatusCode, String)> {
+    state
+        .ble_cmd_tx
+        .send(BleCommand::Rescan)
         .await
         .map_err(|_| {
             (

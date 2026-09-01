@@ -1,42 +1,54 @@
-[English](README_EN.md) | [中文](README.md)
+# Band Heart Rate Monitor
 
-[![CI](https://github.com/Roxy-0304/band-heart-rate/actions/workflows/ci.yml/badge.svg)](https://github.com/Roxy-0304/band-heart-rate/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Roxy-0304/band-heart-rate)](https://github.com/Roxy-0304/band-heart-rate/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+> Lightweight system tray heart rate monitor — receives real-time heart rate from wearables via BLE, supports OBS overlay.
 
-## ⚠️ Disclaimer
+🌐 English | [简体中文](README.md)
 
-> This project is forked from [Tnze/miband-heart-rate](https://github.com/Tnze/miband-heart-rate), code written by AI.
+> ⚠️ Forked from [Tnze/miband-heart-rate](https://github.com/Tnze/miband-heart-rate), code written by AI.
 
-## About
+## 📖 About
 
-**Band Heart Rate Monitor** is a lightweight system tray heart rate monitoring application built with Rust. It receives real-time heart rate data from wearable devices via the standard BLE Heart Rate Service (UUID 0x180D). A built-in HTTP server supports REST and SSE real-time push, making it easy to integrate with live stream overlays (OBS).
+**Band Heart Rate Monitor** is a lightweight Rust-based system tray application that receives real-time heart rate data from wearable devices via the standard BLE Heart Rate Service (UUID 0x180D). Built-in HTTP server supports REST and SSE real-time push for easy OBS overlay integration.
 
-You need to enable the heart rate broadcast function in your wearable device's settings.
+## ✨ Features
 
-> Latest builds can be downloaded from [GitHub Releases](https://github.com/Roxy-0304/band-heart-rate/releases).
+### 🎯 Core
 
-## Features
+| Feature | Description |
+|---------|-------------|
+| System Tray Operation | Starts silently to tray by default, no window, minimal resource usage |
+| Real-time Heart Rate Display | Large digit display with heart SVG animation in Web UI |
+| Windows Notifications | Real-time notifications for scanning, connected, disconnected, timeout, errors |
+| Tray Menu | Left-click opens Web UI, right-click: Open Web UI / Copy Address / Quit |
+| Auto Reconnect | Automatic scan and reconnect with exponential backoff |
+| Control Panel | Independent Web control panel for device management, config changes, manual reconnect |
+| Rescan | One-click rescan after timeout without restarting the application |
 
-- **System Tray Operation** — Starts silently to tray by default, no window, minimal resource usage
-- **Windows Notifications** — Real-time notifications for scanning, connected, disconnected, timeout, and errors
-- **Tray Menu** — Left-click opens Web UI, right-click menu: Open Web UI / Copy Address / Quit
-- **Real-time Heart Rate Display** — Web interface with large digits and heart SVG animation
-- **OBS Overlay** — `overlay` mode provides transparent background heart rate overlay
-- **HTTP API** — REST endpoints + SSE real-time push + settings read/write
-- **Auto Reconnect** — Automatic scan and reconnect with exponential backoff
-- **Native Windows Support** — macOS / Linux require additional platform dependencies
+### 🔗 Integration
 
-## Quick Start
+| Feature | Description |
+|---------|-------------|
+| OBS Overlay | `overlay` mode provides transparent background heart rate overlay |
+| HTTP API | REST endpoints + SSE real-time push + settings read/write |
 
-### Download
+### 🛠️ Developer
 
-Go to [GitHub Releases](https://github.com/Roxy-0304/band-heart-rate/releases) to download the executable and run it directly.
+| Feature | Description |
+|---------|-------------|
+| Configuration | JSON config file, readable/writable via HTTP API |
+| Cross-platform | Headless mode compiles on all platforms |
+
+## 🚀 Quick Start
+
+### Option 1: Download (Recommended)
+
+1. Download the latest version from [GitHub Releases](https://github.com/Roxy-0304/band-heart-rate/releases)
+2. Run directly — no installation needed
 
 - **Default**: Starts silently to system tray, no window
 - **`--console` flag**: Shows terminal window with log output
 
-### Build from Source
+### Option 2: Build from Source
 
 ```bash
 git clone https://github.com/Roxy-0304/band-heart-rate.git
@@ -49,27 +61,31 @@ cargo build --release
 cargo build --release --no-default-features
 ```
 
-**Requirements:** [Rust toolchain](https://www.rust-lang.org/tools/install) (rustup recommended, Edition 2024)
+### Requirements
 
-> **macOS / Linux users:** The tray version primarily targets Windows. The headless mode (`cargo build --release --no-default-features`) compiles on all platforms. To build the tray version on macOS/Linux, you need to install platform-specific system dependencies.
+- **OS**: Windows (full version) / macOS / Linux (headless mode)
+- **Rust**: Edition 2024 (install via [rustup](https://www.rust-lang.org/tools/install) recommended)
 
-## Usage
+> 💡 macOS / Linux note: The tray version targets Windows. Headless mode (`--no-default-features`) compiles on all platforms. Building the tray version on macOS/Linux requires platform-specific dependencies.
+
+## 📖 Usage
+
+### Getting Started
 
 1. Enable **Heart Rate Broadcast** in your band/watch settings
 2. Ensure Bluetooth is enabled on your device
 3. Run the program — it automatically scans and connects to heart rate devices
-4. Tray icon shows real-time heart rate, status changes via Windows notifications
+4. Tray icon shows real-time heart rate; status changes notify via Windows notifications
 5. Left-click tray icon to open Web UI, right-click for menu
 
-## Tray Menu
+### Tray Operations
 
-| Menu Item | Function |
-|-----------|----------|
-| Open Web UI | Opens heart rate monitor page in browser |
-| Copy Address | Copies Web UI address to clipboard |
-| Quit | Exits the application |
+| Action | Description |
+|--------|-------------|
+| Left-click tray icon | Open Web UI |
+| Right-click tray icon | Menu: Open Web UI / Copy Address / Quit |
 
-## System Notifications
+### System Notifications
 
 | Notification | Trigger |
 |--------------|---------|
@@ -79,22 +95,12 @@ cargo build --release --no-default-features
 | Timeout | Scan timed out, no device found |
 | Error | Bluetooth adapter error etc. |
 
-## HTTP API
+## ⚙️ Configuration
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | Web UI page |
-| `GET /heart-rate` | Current heart rate as JSON |
-| `GET /heart-rate-stream` | SSE real-time heart rate stream |
-| `GET /settings` | Get current configuration |
-| `PUT /settings` | Update configuration (JSON body) |
-| `GET /health` | Health check |
+Settings saved to system config directory:
 
-Default address: `http://127.0.0.1:3030` (configurable in settings; random port if occupied).
-
-## Configuration
-
-Settings are saved in the system config directory (Windows: `%APPDATA%/band-heart-rate/settings.json`) and can also be modified via HTTP API.
+- **Windows**: `%APPDATA%/band-heart-rate/settings.json`
+- Also modifiable via HTTP API
 
 | Setting | Description | Default |
 |---------|-------------|---------|
@@ -104,13 +110,55 @@ Settings are saved in the system config directory (Windows: `%APPDATA%/band-hear
 | `auto_start` | Start on system boot | `false` |
 | `minimize_to_tray` | Minimize to tray on close | `true` |
 
-## Compatible Devices
+## 🔌 API Reference
 
-Compatible with any wearable device that supports the standard BLE Heart Rate Service (UUID 0x180D).
+Default address: `http://127.0.0.1:3030` (configurable; uses random port if occupied).
 
-Supported devices include: Xiaomi Mi Band, Honor Band, Huawei Band/Watch, Amazfit, Apple Watch, and more. Enable Heart Rate Broadcast in your device settings to be detected.
+### Web UI Port (default 3030)
 
-## Screenshots
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Web UI page (real-time heart rate display) |
+| GET | `/heart-rate` | Current heart rate as JSON |
+| GET | `/heart-rate-stream` | SSE real-time heart rate stream |
+| GET | `/health` | Health check |
+
+### Control Panel Port (default 3031 = Web port + 1)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Control panel page |
+| GET | `/heart-rate` | Current heart rate as JSON |
+| GET | `/devices` | List of discovered devices |
+| POST | `/devices/select` | Select device to connect (JSON body: `{"device_id": "..."}`) |
+| POST | `/devices/disconnect` | Disconnect current device |
+| POST | `/devices/rescan` | Rescan (reset timeout, restart scanning) |
+| GET | `/settings` | Get current configuration |
+| PUT | `/settings` | Update configuration (JSON body) |
+
+## 📱 Compatible Devices
+
+Compatible with any wearable supporting the standard BLE Heart Rate Service (UUID 0x180D):
+
+- Xiaomi Mi Band ✅ (tested)
+- Honor Band ❓
+- Huawei Band/Watch ❓
+- Amazfit ❓
+- Apple Watch ❓
+
+> Enable Heart Rate Broadcast in your device settings to be detected. ❓ means theoretically compatible but not tested.
+
+## ⚠️ Notes
+
+- Heart rate broadcast must be enabled in band/watch settings
+- macOS/Linux require platform-specific dependencies for tray version build
+- Headless mode (`--no-default-features`) excludes BLE and system tray
+
+## 🙏 Acknowledgments
+
+- [Tnze/miband-heart-rate](https://github.com/Tnze/miband-heart-rate) — Original project
+
+## 📸 Screenshots
 
 **Console Log**
 
@@ -120,6 +168,6 @@ Supported devices include: Xiaomi Mi Band, Honor Band, Huawei Band/Watch, Amazfi
 
 ![Control Panel](doc/2.png)
 
-## License
+## 📄 License
 
 [MIT](LICENSE)

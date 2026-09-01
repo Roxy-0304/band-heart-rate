@@ -162,6 +162,18 @@ pub async fn run_loop(
                     session.reconnect_attempts = 0;
                     session.known_ids.clear();
                 }
+                BleCommand::Rescan => {
+                    tracing::info!("收到重新扫描命令，重置会话状态");
+                    cancel_flag.store(true, Ordering::Relaxed);
+                    tx.send_replace(HeartRateReading::default());
+                    // 重置会话状态，允许重新扫描
+                    session.has_ever_connected = false;
+                    session.disconnect_time = None;
+                    session.reconnect_attempts = 0;
+                    session.known_ids.clear();
+                    // 跳过本次超时检查，直接继续循环
+                    continue;
+                }
             }
         }
 
