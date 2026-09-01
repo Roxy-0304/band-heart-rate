@@ -126,6 +126,7 @@ impl BleSession {
 // ===== 公开入口 =====
 
 /// 蓝牙主循环：扫描、连接、重连
+#[allow(clippy::print_stdout)]
 pub async fn run_loop(
     adapter: Adapter,
     tx: watch::Sender<HeartRateReading>,
@@ -619,7 +620,6 @@ async fn handle_device(
                     });
 
                     // Heart rate displayed locally to user; not sensitive logging
-                    #[allow(clippy::print_stdout)]
                     printfl_inline!(
                         "心率值: {}, 传感器接触: {:?}                    ",
                         reading.0,
