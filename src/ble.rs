@@ -618,6 +618,8 @@ async fn handle_device(
                         device_name: dn.clone(),
                     });
 
+                    // Heart rate displayed locally to user; not sensitive logging
+                    #[allow(clippy::print_stdout)]
                     printfl_inline!(
                         "心率值: {}, 传感器接触: {:?}                    ",
                         reading.0,
