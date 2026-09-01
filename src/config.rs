@@ -13,6 +13,8 @@ pub struct Config {
     pub minimize_to_tray: bool,
     #[serde(default)]
     pub language: String,
+    #[serde(default)]
+    pub notified_version: Option<String>,
 }
 
 impl Default for Config {
@@ -24,6 +26,7 @@ impl Default for Config {
             auto_start: false,
             minimize_to_tray: true,
             language: "zh".into(),
+            notified_version: None,
         }
     }
 }

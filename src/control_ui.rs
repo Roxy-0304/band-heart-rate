@@ -27,6 +27,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         .page-title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
         .lang-toggle { display: flex; gap: 2px; background: var(--bg-2); border-radius: var(--radius-sm); padding: 2px; }
         .lang-btn { padding: 4px 10px; border: none; border-radius: 3px; background: transparent; color: var(--fg-2); font-family: var(--font); font-size: 0.73rem; font-weight: 500; cursor: pointer; transition: all var(--transition); }
+        .lang-btn:active { transform: scale(0.92); }
         .lang-btn.active { background: var(--accent); color: #fff; }
         .section { margin-bottom: 20px; }
         .section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-2); margin-bottom: 8px; padding-left: 2px; }
@@ -37,16 +38,16 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         .stat-value { font-size: 0.93rem; font-weight: 600; font-variant-numeric: tabular-nums; }
         .stat-value.ok { color: var(--green); } .stat-value.err { color: var(--red); } .stat-value.warn { color: var(--yellow); } .stat-value.dim { color: var(--fg-2); }
         .device-list { list-style: none; }
-        .device-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: background var(--transition); border: 1px solid transparent; }
+        .device-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all var(--transition); border: 1px solid transparent; }
         .device-item + .device-item { margin-top: 2px; }
-        .device-item:hover { background: var(--bg-2); } .device-item:active { background: var(--bg-3); }
+        .device-item:hover { background: var(--bg-2); } .device-item:active { background: var(--bg-3); transform: scale(0.98); }
         .device-item.selected { background: var(--accent-dim); border-color: var(--accent); }
         .device-name { font-size: 0.87rem; font-weight: 500; }
         .device-id { font-size: 0.67rem; color: var(--fg-2); font-family: "SF Mono", "Cascadia Code", monospace; margin-top: 1px; }
         .device-empty { color: var(--fg-2); font-size: 0.8rem; text-align: center; padding: 24px 0; }
         .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border: none; border-radius: var(--radius-sm); font-family: var(--font); font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: background var(--transition), opacity var(--transition); }
-        .btn:active { transform: scale(0.97); }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border: none; border-radius: var(--radius-sm); font-family: var(--font); font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all var(--transition); }
+        .btn:active { transform: scale(0.92); }
         .btn-primary { background: var(--accent); color: #fff; } .btn-primary:hover { background: var(--accent-hover); }
         .btn-danger { background: var(--red-dim); color: var(--red); } .btn-danger:hover { background: var(--red); color: #fff; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -98,14 +99,19 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
                 <div class="btn-row"><button class="btn btn-primary" id="btn-save" data-i18n="panel_save">保存</button></div>
             </div>
         </div>
+        <div class="section" style="margin-top:24px;">
+            <div id="version-info" style="text-align:center;padding:8px;">
+                <span class="stat-value dim" style="font-size:0.73rem;" id="v-status">--</span>
+            </div>
+        </div>
     </div>
     <div class="toast" id="toast"></div>
     <script>
     (function(){
-        var I18N={zh:{},en:{}};
+        var I18N={zh:{panel_ver_skip:"版本检查跳过：",panel_ver_update:"发现新版本",panel_ver_go:"前往更新",panel_ver_current:"当前版本"},en:{}};
         var el=document.querySelectorAll("[data-i18n]");
         for(var i=0;i<el.length;i++){var k=el[i].getAttribute("data-i18n");if(el[i].textContent)I18N.zh[k]=el[i].textContent;}
-        I18N.en={panel_title:"Band Heart Rate",panel_status:"Status",panel_conn:"Connection",panel_hr:"Heart Rate",panel_device:"Device",panel_scan:"Scanning",panel_connected:"Connected",panel_disconnected:"Disconnected",panel_yes:"Yes",panel_no:"No",panel_devices:"Device List",panel_disconnect:"Disconnect",panel_rescan:"Rescan",panel_settings:"Settings",panel_max_hr:"Max Heart Rate",panel_allowed:"Allowed Devices (comma separated)",panel_port:"Server Port",panel_save:"Save",panel_scanning:"Scanning...",panel_no_device:"No devices found",panel_unknown:"Unknown device"};
+        I18N.en={panel_title:"Band Heart Rate",panel_status:"Status",panel_conn:"Connection",panel_hr:"Heart Rate",panel_device:"Device",panel_scan:"Scanning",panel_connected:"Connected",panel_disconnected:"Disconnected",panel_yes:"Yes",panel_no:"No",panel_devices:"Device List",panel_disconnect:"Disconnect",panel_rescan:"Rescan",panel_settings:"Settings",panel_max_hr:"Max Heart Rate",panel_allowed:"Allowed Devices (comma separated)",panel_port:"Server Port",panel_save:"Save",panel_scanning:"Scanning...",panel_no_device:"No devices found",panel_unknown:"Unknown device",panel_ver_skip:"Version check skipped: ",panel_ver_update:"New version",panel_ver_go:"Click to update",panel_ver_current:"Current version"};
 
         var lang=localStorage.getItem("bhr-lang")||"zh";
         function t(k){return(I18N[lang]&&I18N[lang][k])||I18N.zh[k]||k;}
@@ -116,7 +122,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
         }
         document.querySelectorAll(".lang-btn").forEach(function(b){
             b.addEventListener("click",function(){
-                lang=b.getAttribute("data-lang");localStorage.setItem("bhr-lang",lang);applyLang();
+                lang=b.getAttribute("data-lang");localStorage.setItem("bhr-lang",lang);applyLang();renderVersion();
                 fetch("/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({max_heart_rate:parseInt(document.getElementById("c-mhr").value)||190,allowed_devices:document.getElementById("c-dev").value,server_port:parseInt(document.getElementById("c-port").value)||3030,auto_start:false,minimize_to_tray:true,language:lang})}).catch(function(){});
             });
         });
@@ -143,7 +149,7 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
                 if(devs.length===0){l.innerHTML="<li class=\"device-empty\">"+(hr.scanning?t("panel_scanning"):t("panel_no_device"))+"</li>";}
                 else{var h="";for(var i2=0;i2<devs.length;i2++){var d=devs[i2];var sel=currentAddr===d.id?" selected":"";h+="<li class=\"device-item"+sel+"\" data-id=\""+esc(d.id)+"\"><div><div class=\"device-name\">"+esc(d.name||t("panel_unknown"))+"</div><div class=\"device-id\">"+esc(d.id)+"</div></div></li>";}l.innerHTML=h;}
                 $("btn-disconnect").disabled=!hr.connected;
-                if(cfg.language&&cfg.language!==lang){lang=cfg.language;localStorage.setItem("bhr-lang",lang);applyLang();}
+                if(cfg.language&&cfg.language!==lang){lang=cfg.language;localStorage.setItem("bhr-lang",lang);applyLang();renderVersion();}
                 $("c-mhr").value=cfg.max_heart_rate;$("c-dev").value=cfg.allowed_devices;$("c-port").value=cfg.server_port;
             }catch(e){console.error(e)}
         }
@@ -163,6 +169,24 @@ pub const CONTROL_HTML: &str = r##"<!DOCTYPE html>
             var v=parseInt($("c-port").value);if(isNaN(v)||v<1024||v>65535){toast(t("panel_port_invalid")||"Invalid port");return;}
             fetch("/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({max_heart_rate:parseInt($("c-mhr").value)||190,allowed_devices:$("c-dev").value,server_port:v,auto_start:false,minimize_to_tray:true,language:lang})}).then(function(){toast(t("panel_saved")||"Saved");}).catch(function(){toast(t("panel_save_fail")||"Failed");});
         });
+        // 版本检查（缓存数据，切换语言时同步渲染）
+        var verCache=null;
+        function renderVersion(){
+            var el=$("v-status");if(!verCache||!el)return;
+            if(verCache.error){
+                el.textContent=t("panel_ver_skip")+verCache.error;el.className="stat-value dim";
+            }else if(verCache.has_update){
+                el.innerHTML='<a href="'+verCache.release_url+'" target="_blank" style="color:var(--accent);text-decoration:none;">'+t("panel_ver_update")+' v'+verCache.latest_version+'，'+t("panel_ver_go")+'</a>';
+                el.className="stat-value";
+            }else{
+                el.textContent=t("panel_ver_current")+" v"+verCache.current_version;el.className="stat-value dim";
+            }
+        }
+        async function checkVersion(){
+            try{var r=await fetch("/version");verCache=await r.json();renderVersion();}catch(e){console.error("版本检查失败:",e);}
+        }
+        checkVersion();setInterval(checkVersion,300000);
+
         refresh();setInterval(refresh,2000);
     })();
     </script>

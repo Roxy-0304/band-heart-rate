@@ -9,6 +9,7 @@ mod macros;
 mod server;
 mod tray;
 mod types;
+mod version_check;
 mod web_ui;
 
 #[cfg(all(windows, feature = "tray"))]
@@ -55,6 +56,8 @@ fn main() {
     let config_rx_server = config_manager.rx.clone();
     let config_rx_ble = config_manager.rx.clone();
     let config_rx_tray = config_manager.rx.clone();
+    let config_tx_version = config_manager.tx.clone();
+    let config_rx_version = config_manager.rx.clone();
 
     // BLE 命令通道
     let (ble_cmd_tx, ble_cmd_rx) = mpsc::channel::<types::BleCommand>(16);
@@ -90,6 +93,77 @@ fn main() {
                     control_server::run_control_server(control_state_inner, control_port).await
                 {
                     tracing::error!("Control 服务器错误: {err}");
+                }
+            });
+
+            // 版本检查（异步，不阻塞）
+            tokio::spawn(async move {
+                let result = version_check::check_latest_version().await;
+
+                match result.latest_version {
+                    Some(latest_version) => {
+                        let current_notified = config_rx_version
+                            .borrow()
+                            .notified_version
+                            .clone()
+                            .unwrap_or_default();
+
+                        if current_notified.is_empty() {
+                            // 首次安装，弹出欢迎通知
+                            #[cfg(all(windows, feature = "tray"))]
+                            {
+                                use crate::i18n::t;
+                                let lang = config_rx_version.borrow().language.clone();
+                                let title = t(&lang, "notif_welcome");
+                                let body = format!(
+                                    "{} v{latest_version}",
+                                    t(&lang, "msg_welcome")
+                                );
+                                let _ = notify_rust::Notification::new()
+                                    .appname("Band Heart Rate")
+                                    .summary(&title)
+                                    .body(&body)
+                                    .show();
+                            }
+
+                            // 更新配置
+                            let mut config = config_rx_version.borrow().clone();
+                            config.notified_version = Some(latest_version.clone());
+                            let _ = config_tx_version.send(config);
+
+                            tracing::info!("欢迎使用 Band Heart Rate v{latest_version}");
+                        } else if version_check::is_newer_version(&latest_version, &current_notified) {
+                            // 发现新版本，弹出通知（仅一次）
+                            #[cfg(all(windows, feature = "tray"))]
+                            {
+                                use crate::i18n::t;
+                                let lang = config_rx_version.borrow().language.clone();
+                                let title = t(&lang, "notif_update");
+                                let body = format!(
+                                    "{} v{latest_version}",
+                                    t(&lang, "msg_update")
+                                );
+                                let _ = notify_rust::Notification::new()
+                                    .appname("Band Heart Rate")
+                                    .summary(&title)
+                                    .body(&body)
+                                    .show();
+                            }
+
+                            // 更新配置
+                            let mut config = config_rx_version.borrow().clone();
+                            config.notified_version = Some(latest_version.clone());
+                            let _ = config_tx_version.send(config);
+
+                            tracing::info!("发现新版本 v{latest_version}");
+                        }
+                    }
+                    None => {
+                        tracing::debug!(
+                            "版本检查跳过: {}",
+                            result.error.unwrap_or_default()
+                        );
+                    }
                 }
             });
 

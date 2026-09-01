@@ -179,6 +179,16 @@ pub fn t(lang: &str, key: &str) -> String {
         ("zh", "menu_quit") => "退出",
         ("en", "menu_quit") => "Quit",
 
+        // 版本通知
+        ("zh", "notif_welcome") => "欢迎使用",
+        ("en", "notif_welcome") => "Welcome to",
+        ("zh", "msg_welcome") => "欢迎使用 Band Heart Rate Monitor",
+        ("en", "msg_welcome") => "Welcome to Band Heart Rate Monitor",
+        ("zh", "notif_update") => "发现新版本",
+        ("en", "notif_update") => "New version available",
+        ("zh", "msg_update") => "发现新版本，前往更新",
+        ("en", "msg_update") => "New version available, click to update",
+
         // 兜底
         _ => return key.to_string(),
     };
