@@ -23,12 +23,11 @@ pub async fn check_latest_version() -> VersionCheckResult {
             return VersionCheckResult {
                 latest_version: None,
                 error: Some(format!("创建请求失败: {e}")),
-            }
+            };
         }
     };
 
-    let url =
-        "https://api.github.com/repos/Roxy-0304/band-heart-rate/releases/latest";
+    let url = "https://api.github.com/repos/Roxy-0304/band-heart-rate/releases/latest";
 
     let resp = match client
         .get(url)
@@ -41,7 +40,7 @@ pub async fn check_latest_version() -> VersionCheckResult {
             return VersionCheckResult {
                 latest_version: None,
                 error: Some(format!("网络请求失败: {e}")),
-            }
+            };
         }
     };
 
@@ -51,7 +50,7 @@ pub async fn check_latest_version() -> VersionCheckResult {
             return VersionCheckResult {
                 latest_version: None,
                 error: Some(format!("解析响应失败: {e}")),
-            }
+            };
         }
     };
 
@@ -69,11 +68,8 @@ pub async fn check_latest_version() -> VersionCheckResult {
 
 /// 比较版本号，返回 true 如果 latest > current
 pub fn is_newer_version(latest: &str, current: &str) -> bool {
-    let parse_version = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
+    let parse_version =
+        |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
 
     let latest_parts = parse_version(latest);
     let current_parts = parse_version(current);

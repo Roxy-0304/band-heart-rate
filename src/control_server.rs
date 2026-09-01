@@ -141,8 +141,7 @@ async fn version_info() -> Json<VersionInfo> {
                 current_version,
                 latest_version: Some(latest),
                 has_update,
-                release_url: "https://github.com/Roxy-0304/band-heart-rate/releases"
-                    .to_string(),
+                release_url: "https://github.com/Roxy-0304/band-heart-rate/releases".to_string(),
                 error: None,
             })
         }

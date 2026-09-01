@@ -1,5 +1,3 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 mod ble;
 mod config;
 mod control_server;
@@ -7,27 +5,25 @@ mod control_ui;
 mod i18n;
 mod macros;
 mod server;
+#[cfg(feature = "tray")]
 mod tray;
 mod types;
 mod version_check;
 mod web_ui;
 
 #[cfg(all(windows, feature = "tray"))]
-fn attach_console() {
-    use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
+fn free_console() {
+    use windows_sys::Win32::System::Console::FreeConsole;
     unsafe {
-        AttachConsole(ATTACH_PARENT_PROCESS);
+        FreeConsole();
     }
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let has_console = args.iter().any(|a| a == "--console");
+    let _has_console = args.iter().any(|a| a == "--console");
 
-    if has_console {
-        #[cfg(all(windows, feature = "tray"))]
-        attach_console();
-    }
+    // Windows 子系统始终为 console，不需要 attach_console
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -55,6 +51,7 @@ fn main() {
     let config_tx_server = config_manager.tx.clone();
     let config_rx_server = config_manager.rx.clone();
     let config_rx_ble = config_manager.rx.clone();
+    #[cfg(feature = "tray")]
     let config_rx_tray = config_manager.rx.clone();
     let config_tx_version = config_manager.tx.clone();
     let config_rx_version = config_manager.rx.clone();
@@ -115,10 +112,7 @@ fn main() {
                                 use crate::i18n::t;
                                 let lang = config_rx_version.borrow().language.clone();
                                 let title = t(&lang, "notif_welcome");
-                                let body = format!(
-                                    "{} v{latest_version}",
-                                    t(&lang, "msg_welcome")
-                                );
+                                let body = t(&lang, "msg_welcome").to_string();
                                 let _ = notify_rust::Notification::new()
                                     .appname("Band Heart Rate")
                                     .summary(&title)
@@ -131,18 +125,18 @@ fn main() {
                             config.notified_version = Some(latest_version.clone());
                             let _ = config_tx_version.send(config);
 
-                            tracing::info!("欢迎使用 Band Heart Rate v{latest_version}");
-                        } else if version_check::is_newer_version(&latest_version, &current_notified) {
+                            tracing::info!("欢迎使用 Band Heart Rate");
+                        } else if version_check::is_newer_version(
+                            &latest_version,
+                            &current_notified,
+                        ) {
                             // 发现新版本，弹出通知（仅一次）
                             #[cfg(all(windows, feature = "tray"))]
                             {
                                 use crate::i18n::t;
                                 let lang = config_rx_version.borrow().language.clone();
                                 let title = t(&lang, "notif_update");
-                                let body = format!(
-                                    "{} v{latest_version}",
-                                    t(&lang, "msg_update")
-                                );
+                                let body = format!("{} v{latest_version}", t(&lang, "msg_update"));
                                 let _ = notify_rust::Notification::new()
                                     .appname("Band Heart Rate")
                                     .summary(&title)
@@ -159,10 +153,7 @@ fn main() {
                         }
                     }
                     None => {
-                        tracing::debug!(
-                            "版本检查跳过: {}",
-                            result.error.unwrap_or_default()
-                        );
+                        tracing::debug!("版本检查跳过: {}", result.error.unwrap_or_default());
                     }
                 }
             });
@@ -232,8 +223,23 @@ fn main() {
         });
     });
 
-    // 主线程：系统托盘事件循环
-    if let Err(e) = tray::run(rx_ble, web_port, control_port, config_rx_tray) {
-        tracing::error!("托盘退出: {e}");
+    // 主线程：系统托盘事件循环（无托盘模式下阻塞等待）
+    #[cfg(feature = "tray")]
+    {
+        // 非 --console 模式下隐藏控制台窗口
+        if !_has_console {
+            free_console();
+        }
+        if let Err(e) = tray::run(rx_ble, web_port, control_port, config_rx_tray) {
+            tracing::error!("托盘退出: {e}");
+        }
+    }
+
+    #[cfg(not(feature = "tray"))]
+    {
+        tracing::info!("无托盘模式，按 Ctrl+C 退出");
+        loop {
+            std::thread::park();
+        }
     }
 }
